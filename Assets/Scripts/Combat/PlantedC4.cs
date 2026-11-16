@@ -294,6 +294,12 @@ namespace FPSFramework.Combat
                     float dmg = Mathf.Lerp(explosionDamage, 80f, ratio);
                     d.TakeDamage(dmg, HitboxType.Body, targetCenter, dir);
                     roots.Add(rootObj);
+
+                    HumanoidRagdollController ragdoll = col.GetComponentInParent<HumanoidRagdollController>();
+                    if (ragdoll != null)
+                    {
+                        ragdoll.ApplyExplosion(blastCenter, 2400f, explosionRadius, 1.8f);
+                    }
                 }
 
                 Rigidbody rb = col.GetComponentInParent<Rigidbody>();

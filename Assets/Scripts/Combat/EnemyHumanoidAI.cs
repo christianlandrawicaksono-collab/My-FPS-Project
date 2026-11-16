@@ -98,7 +98,8 @@ namespace FPSFramework.Combat
             }
         }
 
-        // Rotasi & Flinch
+        // Ragdoll & Rotasi
+        private HumanoidRagdollController _ragdoll;
         private Quaternion _baseRotation;
         private Quaternion _flinchRotation;
         private Vector3 _initialPosition;
@@ -108,6 +109,12 @@ namespace FPSFramework.Combat
         private void Awake()
         {
             CurrentHealth = maxHealth;
+
+            _ragdoll = GetComponent<HumanoidRagdollController>();
+            if (_ragdoll == null)
+            {
+                _ragdoll = gameObject.AddComponent<HumanoidRagdollController>();
+            }
 
             _charController = GetComponent<CharacterController>();
             if (_charController == null)
@@ -184,9 +191,12 @@ namespace FPSFramework.Combat
             {
                 if (_charController != null && _charController.enabled) _charController.enabled = false;
                 if (_animator != null && _animator.enabled) _animator.enabled = false;
-                // Smooth interpolasi translasi dan rotasi ke posisi tergeletak datar di lantai
-                transform.position = Vector3.Lerp(transform.position, _deathTargetPos, Time.deltaTime * 6f);
-                transform.rotation = Quaternion.Slerp(transform.rotation, _deathTargetRot, Time.deltaTime * 6f);
+                if (_ragdoll == null || !_ragdoll.IsRagdollActive)
+                {
+                    // Fallback static lerp jika tidak menggunakan ragdoll
+                    transform.position = Vector3.Lerp(transform.position, _deathTargetPos, Time.deltaTime * 6f);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, _deathTargetRot, Time.deltaTime * 6f);
+                }
                 return;
             }
 
@@ -601,7 +611,7 @@ namespace FPSFramework.Combat
 
             if (CurrentHealth <= 0f)
             {
-                Die(hitbox == HitboxType.Head, hitDirection);
+                Die(hitbox == HitboxType.Head, hitPoint, hitDirection);
             }
             else
             {
@@ -612,7 +622,15 @@ namespace FPSFramework.Combat
             }
         }
 
-        private void Die(bool wasHeadshot, Vector3 hitDir)
+        public void ApplyExplosionForce(Vector3 blastOrigin, float force, float radius, float upwardsModifier = 0.8f)
+        {
+            if (_ragdoll != null)
+            {
+                _ragdoll.ApplyExplosion(blastOrigin, force, radius, upwardsModifier);
+            }
+        }
+
+        private void Die(bool wasHeadshot, Vector3 hitPoint, Vector3 hitDir)
         {
             _currentState = EnemyAIState.Dead;
             CurrentHealth = 0f;
@@ -622,37 +640,41 @@ namespace FPSFramework.Combat
                 _charController.enabled = false;
             }
 
-            // Reset animator ke pose berdiri tegak sebelum dimatikan agar kaki lurus (mencegah pose langkah lari membeku)
-            if (_animator != null)
-            {
-                _animator.SetFloat("Speed", 0f);
-                _animator.SetFloat("MoveY", 0f);
-                _animator.SetFloat("MoveX", 0f);
-                _animator.Play("Locomotion_Standing", 0, 0f);
-                _animator.Update(0f);
-                _animator.enabled = false;
-            }
-
             if (_navAgent != null)
             {
                 if (_navAgent.isOnNavMesh) _navAgent.isStopped = true;
                 _navAgent.enabled = false;
             }
 
-            // Hitung orientasi roboh datar di lantai berdasarkan momentum arah peluru
-            float dot = Vector3.Dot(transform.forward, hitDir);
-            bool fallBackward = dot <= 0f; // Ditembak dari depan -> roboh ke belakang (terlentang)
+            // Aktifkan fisika Ragdoll penuh jika komponen tersedia
+            if (_ragdoll != null)
+            {
+                _ragdoll.TriggerRagdoll(hitPoint, hitDir, wasHeadshot ? 24f : 16f, wasHeadshot);
+            }
+            else
+            {
+                // Fallback: reset pose animator dan rebahkan bot secara statis
+                if (_animator != null)
+                {
+                    _animator.SetFloat("Speed", 0f);
+                    _animator.SetFloat("MoveY", 0f);
+                    _animator.SetFloat("MoveX", 0f);
+                    _animator.Play("Locomotion_Standing", 0, 0f);
+                    _animator.Update(0f);
+                    _animator.enabled = false;
+                }
 
-            Quaternion tilt = fallBackward ? Quaternion.Euler(-90f, 0f, 0f) : Quaternion.Euler(90f, 0f, 0f);
-            _deathTargetRot = _baseRotation * tilt;
+                float dot = Vector3.Dot(transform.forward, hitDir);
+                bool fallBackward = dot <= 0f;
+                Quaternion tilt = fallBackward ? Quaternion.Euler(-90f, 0f, 0f) : Quaternion.Euler(90f, 0f, 0f);
+                _deathTargetRot = _baseRotation * tilt;
 
-            // Ground detection: deteksi ketinggian lantai persis di bawah bot
-            float groundY = GetGroundedY(transform.position);
-
-            // Geser translasi posisi agar tubuh mendarat rata sejajar lantai (Y ~ 0.12m)
-            Vector3 slideDir = fallBackward ? -transform.forward : transform.forward;
-            _deathTargetPos = transform.position + slideDir * 0.85f;
-            _deathTargetPos.y = groundY + 0.12f;
+                float groundY = GetGroundedY(transform.position);
+                Vector3 slideDir = fallBackward ? -transform.forward : transform.forward;
+                _deathTargetPos = transform.position + slideDir * 0.85f;
+                _deathTargetPos.y = groundY + 0.12f;
+                SetCollidersActive(false);
+            }
 
             // Jika bot membawa bom dan mati sebelum plant, jatuhkan C4 ke tanah menggunakan model Dynamite_Multi
             if (hasC4 && PlantedC4.ActiveC4 == null)
@@ -660,9 +682,6 @@ namespace FPSFramework.Combat
                 HasC4 = false;
                 SpawnDroppedC4(transform.position);
             }
-
-            // Nonaktifkan collider
-            SetCollidersActive(false);
 
             // Picu banner eliminasi & kill chime pada HUD pemain
             TargetDummy.TriggerElimination(gameObject.name, wasHeadshot);
@@ -936,13 +955,21 @@ namespace FPSFramework.Combat
             _deathTargetRot = spawnRot;
             _deathTargetPos = spawnPos;
 
-            if (_animator != null)
+            if (_ragdoll != null)
             {
-                _animator.enabled = true;
-                _animator.applyRootMotion = false;
-                _animator.Rebind();
-                _animator.Play("Locomotion_Standing", 0, 0f);
-                _animator.Update(0f);
+                _ragdoll.ResetRagdoll();
+            }
+            else
+            {
+                if (_animator != null)
+                {
+                    _animator.enabled = true;
+                    _animator.applyRootMotion = false;
+                    _animator.Rebind();
+                    _animator.Play("Locomotion_Standing", 0, 0f);
+                    _animator.Update(0f);
+                }
+                SetCollidersActive(true);
             }
 
             if (_navAgent != null)
@@ -954,8 +981,6 @@ namespace FPSFramework.Combat
                     _navAgent.isStopped = false;
                 }
             }
-
-            SetCollidersActive(true);
         }
 
         private float GetGroundedY(Vector3 checkPos)

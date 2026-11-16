@@ -126,6 +126,12 @@ namespace FPSFramework.Combat
 
                     damageable.TakeDamage(damageToApply, HitboxType.Body, targetCenter, dir);
                     damagedRoots.Add(targetRoot);
+
+                    HumanoidRagdollController ragdoll = hitCol.GetComponentInParent<HumanoidRagdollController>();
+                    if (ragdoll != null)
+                    {
+                        ragdoll.ApplyExplosion(blastCenter, explosionForce * 1.5f, explosionRadius, 1.2f);
+                    }
                 }
 
                 // Dorongan fisika Rigidbody (barel, debris)

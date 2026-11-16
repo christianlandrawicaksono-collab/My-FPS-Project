@@ -396,7 +396,13 @@ namespace FPSFramework.Player
 
                 // Cek apakah mengenai Hitbox Combat (Target Dummy / Karakter)
                 FPSHitbox hitbox = hit.collider.GetComponent<FPSHitbox>();
+                if (hitbox == null) hitbox = hit.collider.GetComponentInParent<FPSHitbox>();
+
                 IDamageable damageable = hitbox != null ? null : hit.collider.GetComponentInParent<IDamageable>();
+                if (hitbox == null && damageable == null && hit.collider.transform.root != null)
+                {
+                    damageable = hit.collider.transform.root.GetComponentInChildren<IDamageable>();
+                }
 
                 if (hitbox != null)
                 {

@@ -687,7 +687,8 @@ namespace FPSFramework.Combat
                 gunObj.transform.localScale = new Vector3(0.12f, 0.2f, 0.8f);
             }
 
-            // Pasang otak AI dan waypoint kustom
+            // Pasang ragdoll dan otak AI dengan waypoint kustom
+            botObj.AddComponent<HumanoidRagdollController>();
             EnemyHumanoidAI botAI = botObj.AddComponent<EnemyHumanoidAI>();
             if (waypoints != null && waypoints.Count > 0)
             {

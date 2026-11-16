@@ -34,6 +34,10 @@ namespace FPSFramework.Combat
             if (_damageableTarget == null)
             {
                 _damageableTarget = GetComponentInParent<IDamageable>();
+                if (_damageableTarget == null && transform.root != null)
+                {
+                    _damageableTarget = transform.root.GetComponentInChildren<IDamageable>();
+                }
             }
 
             float finalDamage = baseDamage * damageMultiplier;
