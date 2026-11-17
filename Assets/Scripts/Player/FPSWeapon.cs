@@ -85,12 +85,23 @@ namespace FPSFramework.Player
 
         [Header("Audio SFX")]
         [SerializeField] private AudioClip shootSound;
+        [Tooltip("Variasi suara tembakan acak agar tidak monoton.")]
+        [SerializeField] private AudioClip[] shootSoundVariations;
         [SerializeField] private AudioClip reloadSound;
+        [Tooltip("Suara saat senjata di-draw / di-equip.")]
+        [SerializeField] private AudioClip equipSound;
         [SerializeField] private AudioClip bulletImpactSound;
         [Tooltip("Suara headshot khas (DING/helm pecah).")]
         [SerializeField] private AudioClip headshotSound;
         [Tooltip("Suara benturan peluru pada badan/target.")]
         [SerializeField] private AudioClip fleshHitSound;
+
+        public AudioClip ShootSound => shootSound;
+        public AudioClip ReloadSound => reloadSound;
+        public AudioClip EquipSound => equipSound;
+        public AudioClip BulletImpactSound => bulletImpactSound;
+        public AudioClip HeadshotSound => headshotSound;
+        public AudioClip FleshHitSound => fleshHitSound;
 
         /// <summary>
         /// Event yang dipanggil saat tembakan mengenai target damageable (bool isHeadshot).
@@ -272,6 +283,12 @@ namespace FPSFramework.Player
             if (bulletImpactSound == null) bulletImpactSound = Resources.Load<AudioClip>("Sound/Bullet_impact_2");
             if (headshotSound == null) headshotSound = Resources.Load<AudioClip>("Sound/headshot");
             if (fleshHitSound == null) fleshHitSound = Resources.Load<AudioClip>("Sound/hit-flesh");
+#if UNITY_EDITOR
+            if (equipSound == null)
+            {
+                equipSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Foley/sfx_wpn_ar_foley_equip_01.wav");
+            }
+#endif
         }
 
         private void Update()
@@ -329,11 +346,17 @@ namespace FPSFramework.Player
             CurrentSpread = baseSpread + _currentSprayBloom + movePenalty;
             _currentSprayBloom = Mathf.Min(_currentSprayBloom + sprayIncreasePerShot, maxSpraySpread);
 
-            // Play shoot audio
-            if (shootSound != null)
+            // Play shoot audio (dengan variasi klip jika tersedia)
+            AudioClip clipToPlay = shootSound;
+            if (shootSoundVariations != null && shootSoundVariations.Length > 0)
+            {
+                clipToPlay = shootSoundVariations[Random.Range(0, shootSoundVariations.Length)];
+            }
+
+            if (clipToPlay != null)
             {
                 _audioSource.pitch = Random.Range(0.96f, 1.04f); // Subtle pitch variation
-                _audioSource.PlayOneShot(shootSound, 0.85f);
+                _audioSource.PlayOneShot(clipToPlay, 0.85f);
             }
 
             // Lapisan 1: Sentakan Camera Recoil Punch ke FPSCameraController
@@ -844,6 +867,40 @@ namespace FPSFramework.Player
         public void SetDefaultPosition(Vector3 newLocalPos)
         {
             _originalLocalPos = newLocalPos;
+        }
+
+        /// <summary>
+        /// Memutar audio efek suara saat senjata di-draw / di-equip.
+        /// </summary>
+        public void PlayEquipSound()
+        {
+            if (equipSound != null && _audioSource != null)
+            {
+                _audioSource.pitch = Random.Range(0.97f, 1.03f);
+                _audioSource.PlayOneShot(equipSound, 0.85f);
+            }
+        }
+
+        /// <summary>
+        /// Mengatur klip audio senjata secara dinamis (misal untuk Pistol atau senjata kustom).
+        /// </summary>
+        public void SetWeaponAudio(AudioClip customShootSound, AudioClip customReloadSound = null, AudioClip[] customShootVariations = null, AudioClip customEquipSound = null)
+        {
+            if (customShootSound != null) shootSound = customShootSound;
+            if (customReloadSound != null) reloadSound = customReloadSound;
+            if (customShootVariations != null && customShootVariations.Length > 0) shootSoundVariations = customShootVariations;
+            if (customEquipSound != null) equipSound = customEquipSound;
+        }
+
+        /// <summary>
+        /// Mewarisi audio feedback tumbukan/hitmarker dari senjata utama (headshot DING, impact, flesh hit).
+        /// </summary>
+        public void InheritHitFeedbackAudio(FPSWeapon source)
+        {
+            if (source == null) return;
+            if (bulletImpactSound == null) bulletImpactSound = source.bulletImpactSound;
+            if (headshotSound == null) headshotSound = source.headshotSound;
+            if (fleshHitSound == null) fleshHitSound = source.fleshHitSound;
         }
 
         /// <summary>

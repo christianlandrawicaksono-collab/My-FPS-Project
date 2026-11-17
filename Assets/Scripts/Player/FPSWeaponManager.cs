@@ -36,6 +36,17 @@ namespace FPSFramework.Player
         [Header("Prefab Proyektil Granat")]
         [SerializeField] private GameObject grenadeProjectilePrefab;
 
+        [Header("Audio SFX Secondary (Pistol)")]
+        [SerializeField] private AudioClip pistolShootSound;
+        [SerializeField] private AudioClip[] pistolShootVariations;
+        [SerializeField] private AudioClip pistolReloadSound;
+        [SerializeField] private AudioClip pistolEquipSound;
+
+        [Header("Audio SFX Grenade")]
+        [SerializeField] private AudioClip grenadeThrowSound;
+        [SerializeField] private AudioClip grenadeExplosionSound;
+        [SerializeField] private AudioClip grenadeEquipSound;
+
         [Header("Pengaturan Amunisi & Kuota")]
         [SerializeField] private int startingGrenadeCount = 1;
         [SerializeField] private float switchDuration = 0.22f;
@@ -59,6 +70,7 @@ namespace FPSFramework.Player
         private Transform _weaponSwayTransform;
         private Coroutine _switchRoutine;
         private float _nextThrowTime;
+        private AudioSource _managerAudioSource;
 
         private void Awake()
         {
@@ -71,6 +83,14 @@ namespace FPSFramework.Player
 
             _mainCamera = Camera.main;
             if (_mainCamera == null) _mainCamera = GetComponentInChildren<Camera>();
+
+            _managerAudioSource = GetComponent<AudioSource>();
+            if (_managerAudioSource == null)
+            {
+                _managerAudioSource = gameObject.AddComponent<AudioSource>();
+            }
+            _managerAudioSource.playOnAwake = false;
+            _managerAudioSource.spatialBlend = 0f;
 
             GrenadeCount = startingGrenadeCount;
         }
@@ -89,6 +109,9 @@ namespace FPSFramework.Player
 
         private void SetupWeaponSlots()
         {
+#if UNITY_EDITOR
+            LoadDefaultAudioAssets();
+#endif
             // Temukan Weapon_Sway Transform
             FPSWeaponSway swayComp = GetComponentInChildren<FPSWeaponSway>();
             if (swayComp != null) _weaponSwayTransform = swayComp.transform;
@@ -119,6 +142,15 @@ namespace FPSFramework.Player
                     _secondaryGun = secondaryWeaponObj.GetComponent<FPSWeapon>();
                 }
             }
+            else
+            {
+                _secondaryGun = secondaryWeaponObj.GetComponent<FPSWeapon>();
+            }
+
+            if (_primaryGun != null && _secondaryGun != null)
+            {
+                _secondaryGun.InheritHitFeedbackAudio(_primaryGun);
+            }
 
             // 3. Setup Grenade Viewmodel
             if (grenadeViewmodelObj == null)
@@ -138,6 +170,45 @@ namespace FPSFramework.Player
             FixRenderersMaterials(grenadeViewmodelObj);
             FixRenderersMaterials(c4ViewmodelObj);
         }
+
+#if UNITY_EDITOR
+        private void LoadDefaultAudioAssets()
+        {
+            if (pistolShootSound == null)
+            {
+                pistolShootSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_01.wav");
+            }
+            if (pistolShootVariations == null || pistolShootVariations.Length == 0)
+            {
+                pistolShootVariations = new AudioClip[]
+                {
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_01.wav"),
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_02.wav"),
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_03.wav")
+                };
+            }
+            if (pistolReloadSound == null)
+            {
+                pistolReloadSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Reload/sfx_wpn_hgn_reload_04_magIn.wav");
+            }
+            if (pistolEquipSound == null)
+            {
+                pistolEquipSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_equip_01.wav");
+            }
+            if (grenadeThrowSound == null)
+            {
+                grenadeThrowSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/GrenadeLauncher/sfx_wpn_gl_fire.wav");
+            }
+            if (grenadeExplosionSound == null)
+            {
+                grenadeExplosionSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/GrenadeLauncher/sfx_wpn_gl_explosion.wav");
+            }
+            if (grenadeEquipSound == null)
+            {
+                grenadeEquipSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_equip_02.wav");
+            }
+        }
+#endif
 
         private GameObject SpawnPistolSecondary()
         {
@@ -194,6 +265,13 @@ namespace FPSFramework.Player
                 kickbackDist: 0.045f,
                 kickbackUpDist: 0.02f
             );
+
+            // Integrasi SFX Handgun nyata & warisan hitmarker audio
+            pistolWeapon.SetWeaponAudio(pistolShootSound, pistolReloadSound, pistolShootVariations, pistolEquipSound);
+            if (_primaryGun != null)
+            {
+                pistolWeapon.InheritHitFeedbackAudio(_primaryGun);
+            }
 
             return pistolObj;
         }
@@ -363,6 +441,17 @@ namespace FPSFramework.Player
                 Vector3 startPos = targetPos + Vector3.down * 0.14f;
                 nextObj.transform.localPosition = startPos;
 
+                // Mainkan suara equip / foley senjata baru
+                if (ActiveGun != null)
+                {
+                    ActiveGun.PlayEquipSound();
+                }
+                else if (targetSlot == WeaponSlot.Grenade && grenadeEquipSound != null && _managerAudioSource != null)
+                {
+                    _managerAudioSource.pitch = Random.Range(0.97f, 1.03f);
+                    _managerAudioSource.PlayOneShot(grenadeEquipSound, 0.75f);
+                }
+
                 float t = 0f;
                 float halfDur = switchDuration * 0.55f;
 
@@ -464,10 +553,22 @@ namespace FPSFramework.Player
                 projectileObj.transform.localScale = Vector3.one * 0.22f;
             }
 
+            // Audio suara lemparan granat
+            if (grenadeThrowSound != null && _managerAudioSource != null)
+            {
+                _managerAudioSource.pitch = Random.Range(0.96f, 1.04f);
+                _managerAudioSource.PlayOneShot(grenadeThrowSound, 0.9f);
+            }
+
             ThrownGrenade nadeComp = projectileObj.GetComponent<ThrownGrenade>();
             if (nadeComp == null)
             {
                 nadeComp = projectileObj.AddComponent<ThrownGrenade>();
+            }
+
+            if (grenadeExplosionSound != null)
+            {
+                nadeComp.SetExplosionSound(grenadeExplosionSound);
             }
 
             Vector3 velocity = throwDir * speed;

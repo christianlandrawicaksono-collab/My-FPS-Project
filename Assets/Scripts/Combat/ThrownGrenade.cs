@@ -59,6 +59,13 @@ namespace FPSFramework.Combat
             {
                 _procExplosionClip = GenerateProceduralExplosionClip();
             }
+
+#if UNITY_EDITOR
+            if (explosionSound == null)
+            {
+                explosionSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/GrenadeLauncher/sfx_wpn_gl_explosion.wav");
+            }
+#endif
         }
 
         private void Start()
@@ -71,6 +78,11 @@ namespace FPSFramework.Combat
             if (_rb == null) _rb = GetComponent<Rigidbody>();
             _rb.linearVelocity = velocity;
             _rb.angularVelocity = angularVelocity;
+        }
+
+        public void SetExplosionSound(AudioClip clip)
+        {
+            if (clip != null) explosionSound = clip;
         }
 
         private IEnumerator FuseRoutine()
@@ -153,10 +165,11 @@ namespace FPSFramework.Combat
             AudioSource src = soundObj.AddComponent<AudioSource>();
             src.clip = explosionSound != null ? explosionSound : _procExplosionClip;
             src.spatialBlend = 1.0f; // 3D Spatial
-            src.minDistance = 5f;
-            src.maxDistance = 55f;
+            src.minDistance = 6f;
+            src.maxDistance = 65f;
             src.rolloffMode = AudioRolloffMode.Logarithmic;
             src.volume = 1.0f;
+            src.pitch = Random.Range(0.95f, 1.05f); // Variasi pitch natural
             src.Play();
 
             Destroy(soundObj, 3.5f);
