@@ -123,6 +123,15 @@ namespace FPSFramework.Player
         /// </summary>
         public static event System.Action<float, bool, Vector3> OnAnyDamageDealt;
 
+        /// <summary>
+        /// Memicu event feedback hitmarker dan floating damage global (dapat dipanggil oleh senjata melee / pisau).
+        /// </summary>
+        public static void TriggerGlobalDamageFeedback(float damage, bool isHeadshot, Vector3 hitPoint)
+        {
+            OnAnyTargetHit?.Invoke(isHeadshot);
+            OnAnyDamageDealt?.Invoke(damage, isHeadshot, hitPoint);
+        }
+
         [Header("Tactical HUD & Inventory Info")]
         [SerializeField] private string weaponName = "SMG-K TACTICAL";
         [SerializeField] private int maxReserveAmmo = 90;
@@ -248,8 +257,16 @@ namespace FPSFramework.Player
             _inputReader = GetComponentInParent<FPSInputReader>();
             _movementState = GetComponentInParent<IFPSMovementState>();
 
-            // Exclude Player layer agar tembakan tidak membentur kapsul sendiri
-            _hitLayers = ~LayerMask.GetMask("Ignore Raycast");
+            // Zero-Damage Guard: Kecualikan layer Ignore Raycast dan layer Viewmodel agar tembakan tidak membentur senjata sendiri
+            int vmLayer = LayerMask.NameToLayer("Viewmodel");
+            if (vmLayer != -1)
+            {
+                _hitLayers = ~(LayerMask.GetMask("Ignore Raycast") | (1 << vmLayer));
+            }
+            else
+            {
+                _hitLayers = ~LayerMask.GetMask("Ignore Raycast");
+            }
 
             CurrentAmmo = magazineSize;
             ReserveAmmo = maxReserveAmmo;

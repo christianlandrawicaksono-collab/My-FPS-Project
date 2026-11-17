@@ -540,22 +540,39 @@ namespace FPSFramework.Player
             float slotW = 54f;
             float slotH = 22f;
             float spacing = 6f;
-            float totalW = (slotW * 4f) + (spacing * 3f);
+
+            // Jika membawa C4 (T side), tampilkan 5 slot; untuk CT default 4 slot
+            bool showC4 = wm.HasC4;
+            int count = showC4 ? 5 : 4;
+            float totalW = (slotW * count) + (spacing * (count - 1));
             float startX = Screen.width - totalW - 30f;
             float startY = Screen.height - 64f - 30f - slotH - 8f;
 
-            string[] slotLabels = { "1 SMG", "2 PSTL", "3 NADE", "4 C4" };
-            WeaponSlot[] slots = { WeaponSlot.Primary, WeaponSlot.Secondary, WeaponSlot.Grenade, WeaponSlot.C4 };
+            string[] slotLabels = showC4
+                ? new string[] { "1 SMG", "2 PSTL", "3 KNIF", "4 NADE", "5 C4" }
+                : new string[] { "1 SMG", "2 PSTL", "3 KNIF", "4 NADE" };
 
-            for (int i = 0; i < 4; i++)
+            WeaponSlot[] slots = showC4
+                ? new WeaponSlot[] { WeaponSlot.Primary, WeaponSlot.Secondary, WeaponSlot.Melee, WeaponSlot.Grenade, WeaponSlot.C4 }
+                : new WeaponSlot[] { WeaponSlot.Primary, WeaponSlot.Secondary, WeaponSlot.Melee, WeaponSlot.Grenade };
+
+            for (int i = 0; i < count; i++)
             {
                 bool isActive = wm.ActiveSlot == slots[i];
                 float x = startX + i * (slotW + spacing);
                 Rect slotRect = new Rect(x, startY, slotW, slotH);
 
+                bool isOutOfGrenades = (slots[i] == WeaponSlot.Grenade && wm.FragGrenades <= 0);
+
                 Color bgColor = isActive ? new Color(0.12f, 0.22f, 0.28f, 0.95f) : new Color(0.06f, 0.07f, 0.09f, 0.75f);
                 Color borderColor = isActive ? new Color(0.0f, 0.95f, 1.0f, 0.9f) : new Color(0.25f, 0.3f, 0.35f, 0.45f);
                 Color txtColor = isActive ? Color.white : new Color(0.6f, 0.65f, 0.7f, 0.8f);
+
+                if (isOutOfGrenades && !isActive)
+                {
+                    txtColor = new Color(0.38f, 0.42f, 0.45f, 0.5f);
+                    borderColor = new Color(0.18f, 0.2f, 0.22f, 0.35f);
+                }
 
                 DrawSolidRect(slotRect, bgColor);
                 DrawBorder(slotRect, borderColor, isActive ? 1.5f : 1.0f);
@@ -572,6 +589,28 @@ namespace FPSFramework.Player
             FPSWeaponManager wm = FPSWeaponManager.Instance;
             if (wm != null)
             {
+                if (wm.ActiveSlot == WeaponSlot.Melee)
+                {
+                    float kw = 240f;
+                    float kh = 64f;
+                    float kx = Screen.width - kw - 30f;
+                    float ky = Screen.height - kh - 30f;
+
+                    DrawSolidRect(new Rect(kx, ky, kw, kh), new Color(0.08f, 0.09f, 0.11f, 0.85f));
+                    DrawBorder(new Rect(kx, ky, kw, kh), new Color(0.2f, 0.8f, 1.0f, 0.6f), 1f);
+                    DrawSolidRect(new Rect(kx + kw - 4f, ky, 4f, kh), new Color(0.2f, 0.85f, 1.0f, 1f));
+
+                    _hudTitleStyle.normal.textColor = new Color(0.3f, 0.85f, 1.0f);
+                    GUI.Label(new Rect(kx + 14f, ky + 8f, 180f, 20f), "COMBAT TACTICAL KNIFE", _hudTitleStyle);
+
+                    _hudBigNumStyle.normal.textColor = Color.white;
+                    GUI.Label(new Rect(kx + 14f, ky + 24f, 85f, 34f), "MELEE", _hudBigNumStyle);
+
+                    _hudSubStyle.normal.textColor = new Color(0.75f, 0.85f, 0.95f);
+                    GUI.Label(new Rect(kx + 104f, ky + 33f, 130f, 24f), "[LMB] SLASH / [RMB] STAB", _hudSubStyle);
+                    return;
+                }
+
                 if (wm.ActiveSlot == WeaponSlot.Grenade)
                 {
                     float gw = 240f;

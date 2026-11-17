@@ -8,19 +8,21 @@ namespace FPSFramework.Player
 {
     public enum WeaponSlot
     {
-        Primary = 1,   // SMG-K
-        Secondary = 2, // Pistol-A
-        Grenade = 3,   // Frag Grenade
-        C4 = 4         // Dynamite Multi (Plantable)
+        Primary = 1,   // SMG-K (Rifle)
+        Secondary = 2, // Pistol-A (Handgun)
+        Melee = 3,     // Combat Knife (Pisau Taktis)
+        Grenade = 4,   // Frag Grenade (Granat)
+        C4 = 5         // Dynamite Multi (Khusus Terrorist / Bom yang dipungut)
     }
 
     /// <summary>
-    /// Pengelola Multi-Weapon Inventory & Weapon Switching (4 Slot):
+    /// Pengelola Multi-Weapon Inventory & Weapon Switching:
     /// - Slot 1: Primary SMG-K (Otomatis, 30/90 peluru)
     /// - Slot 2: Secondary Pistol-A (Semi-otomatis, 12/36 peluru, 38 dmg)
-    /// - Slot 3: Frag Grenade (1 granat gratis tiap ronde, lempar jauh/dekat)
-    /// - Slot 4: C4 Dynamite Multi (Dapat ditanam di Plant Zone)
-    /// - Input: Tombol 1-4 dan Mouse ScrollWheel.
+    /// - Slot 3: Melee Combat Knife (Serangan cepat / tusuk berat, +12% sprint speed)
+    /// - Slot 4: Frag Grenade (Granat taktis lempar jauh/dekat)
+    /// - Slot 5: C4 Dynamite Multi (Khusus mode Terrorist jika membawa bom)
+    /// - Input: Tombol 1-4 dan Mouse ScrollWheel (seamless cycling).
     /// - Transisi: Animasi holster & equip halus dengan jeda tembak 0.22s.
     /// </summary>
     public class FPSWeaponManager : MonoBehaviour
@@ -30,6 +32,7 @@ namespace FPSFramework.Player
         [Header("Slot Senjata 3D")]
         [SerializeField] private GameObject primaryWeaponObj;
         [SerializeField] private GameObject secondaryWeaponObj;
+        [SerializeField] private GameObject knifeViewmodelObj;
         [SerializeField] private GameObject grenadeViewmodelObj;
         [SerializeField] private GameObject c4ViewmodelObj;
 
@@ -66,11 +69,15 @@ namespace FPSFramework.Player
 
         private FPSWeapon _primaryGun;
         private FPSWeapon _secondaryGun;
+        private FPSKnife _knifeWeapon;
         private Camera _mainCamera;
         private Transform _weaponSwayTransform;
         private Coroutine _switchRoutine;
         private float _nextThrowTime;
+        private float _nextScrollSwitchTime;
         private AudioSource _managerAudioSource;
+
+        public FPSKnife ActiveKnife => _knifeWeapon;
 
         private void Awake()
         {
@@ -152,21 +159,59 @@ namespace FPSFramework.Player
                 _secondaryGun.InheritHitFeedbackAudio(_primaryGun);
             }
 
-            // 3. Setup Grenade Viewmodel
+            // 3. Setup Melee (Combat Knife)
+            if (knifeViewmodelObj == null)
+            {
+                knifeViewmodelObj = SpawnKnifeViewmodel();
+                if (knifeViewmodelObj != null)
+                {
+                    _knifeWeapon = knifeViewmodelObj.GetComponent<FPSKnife>();
+                }
+            }
+            else
+            {
+                _knifeWeapon = knifeViewmodelObj.GetComponent<FPSKnife>();
+            }
+
+            // 4. Setup Grenade Viewmodel
             if (grenadeViewmodelObj == null)
             {
                 grenadeViewmodelObj = SpawnGrenadeViewmodel();
             }
 
-            // 4. Setup C4 Viewmodel
+            // 5. Setup C4 Viewmodel
             if (c4ViewmodelObj == null)
             {
                 c4ViewmodelObj = SpawnC4Viewmodel();
             }
 
+            // 6. Inisialisasi URP Weapon Overlay Camera pada kamera utama
+            if (_mainCamera != null && _mainCamera.GetComponent<FPSWeaponOverlayCamera>() == null)
+            {
+                _mainCamera.gameObject.AddComponent<FPSWeaponOverlayCamera>();
+            }
+
+            int vmLayer = LayerMask.NameToLayer("Viewmodel");
+            if (vmLayer == -1) vmLayer = 6;
+
+            // Set seluruh hierarki viewmodel ke layer Viewmodel (Anti-Clipping)
+            SetLayerRecursively(primaryWeaponObj, vmLayer);
+            SetLayerRecursively(secondaryWeaponObj, vmLayer);
+            SetLayerRecursively(knifeViewmodelObj, vmLayer);
+            SetLayerRecursively(grenadeViewmodelObj, vmLayer);
+            SetLayerRecursively(c4ViewmodelObj, vmLayer);
+
+            // Bersihkan seluruh collider viewmodel agar tidak memblokir raycast tembakan (Zero-Damage Guard)
+            StripAllColliders(primaryWeaponObj);
+            StripAllColliders(secondaryWeaponObj);
+            StripAllColliders(knifeViewmodelObj);
+            StripAllColliders(grenadeViewmodelObj);
+            StripAllColliders(c4ViewmodelObj);
+
             // Perbaiki material seluruh viewmodel ke URP Lit agar tidak berwarna pink
             FixRenderersMaterials(primaryWeaponObj);
             FixRenderersMaterials(secondaryWeaponObj);
+            FixRenderersMaterials(knifeViewmodelObj);
             FixRenderersMaterials(grenadeViewmodelObj);
             FixRenderersMaterials(c4ViewmodelObj);
         }
@@ -276,6 +321,52 @@ namespace FPSFramework.Player
             return pistolObj;
         }
 
+        private GameObject SpawnKnifeViewmodel()
+        {
+            GameObject knifePrefab = null;
+#if UNITY_EDITOR
+            knifePrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SciFi_Knife_Pack_01_FREE/Prefabs/Knife_Blue/Knife_SciFi_Pack1_03_FREE.prefab");
+#endif
+            if (knifePrefab == null && _weaponSwayTransform != null)
+            {
+                Transform found = _weaponSwayTransform.Find("Combat_Knife_Viewmodel");
+                if (found != null) return found.gameObject;
+            }
+
+            GameObject knifeObj;
+            if (knifePrefab != null)
+            {
+                knifeObj = Instantiate(knifePrefab, _weaponSwayTransform);
+                knifeObj.name = "Combat_Knife_Viewmodel";
+            }
+            else
+            {
+                knifeObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                knifeObj.name = "Knife_Fallback_Viewmodel";
+                knifeObj.transform.SetParent(_weaponSwayTransform, false);
+                knifeObj.transform.localScale = new Vector3(0.04f, 0.08f, 0.35f);
+                SafeDestroy(knifeObj.GetComponent<Collider>());
+            }
+
+            // Posisi & rotasi ergonomis pisau taktis di sudut kanan bawah pandangan
+            knifeObj.transform.localPosition = new Vector3(0.24f, -0.24f, 0.45f);
+            knifeObj.transform.localRotation = Quaternion.Euler(-10f, 25f, -15f);
+            knifeObj.transform.localScale = Vector3.one * 0.95f;
+
+            // Hapus seluruh collider agar pisau tidak memblokir raycast tembakan senjata
+            Collider[] cols = knifeObj.GetComponentsInChildren<Collider>();
+            foreach (var c in cols) SafeDestroy(c);
+
+            FPSKnife knifeComp = knifeObj.GetComponent<FPSKnife>();
+            if (knifeComp == null)
+            {
+                knifeComp = knifeObj.AddComponent<FPSKnife>();
+            }
+            knifeComp.SetDefaultPosition(knifeObj.transform.localPosition);
+
+            return knifeObj;
+        }
+
         private GameObject SpawnGrenadeViewmodel()
         {
             GameObject nadePrefab = null;
@@ -347,39 +438,58 @@ namespace FPSFramework.Player
         {
             if (IsSwitching) return;
 
-            // Tombol angka 1, 2, 3, 4 via New Input System
+            // Tombol angka 1, 2, 3, 4, 5 via New Input System
             if (Keyboard.current != null)
             {
                 if (Keyboard.current.digit1Key.wasPressedThisFrame || Keyboard.current.numpad1Key.wasPressedThisFrame) SwitchToSlot(WeaponSlot.Primary);
                 else if (Keyboard.current.digit2Key.wasPressedThisFrame || Keyboard.current.numpad2Key.wasPressedThisFrame) SwitchToSlot(WeaponSlot.Secondary);
-                else if (Keyboard.current.digit3Key.wasPressedThisFrame || Keyboard.current.numpad3Key.wasPressedThisFrame) SwitchToSlot(WeaponSlot.Grenade);
-                else if (Keyboard.current.digit4Key.wasPressedThisFrame || Keyboard.current.numpad4Key.wasPressedThisFrame) SwitchToSlot(WeaponSlot.C4);
+                else if (Keyboard.current.digit3Key.wasPressedThisFrame || Keyboard.current.numpad3Key.wasPressedThisFrame) SwitchToSlot(WeaponSlot.Melee);
+                else if (Keyboard.current.digit4Key.wasPressedThisFrame || Keyboard.current.numpad4Key.wasPressedThisFrame) SwitchToSlot(WeaponSlot.Grenade);
+                else if (Keyboard.current.digit5Key.wasPressedThisFrame || Keyboard.current.numpad5Key.wasPressedThisFrame) SwitchToSlot(WeaponSlot.C4);
             }
 
-            // Mouse Scroll Wheel via New Input System
-            if (Mouse.current != null)
+            // Mouse Scroll Wheel via New Input System (Rotasi slot mulus / seamless cycling)
+            if (Mouse.current != null && Time.time >= _nextScrollSwitchTime)
             {
                 float scroll = Mouse.current.scroll.ReadValue().y;
                 if (Mathf.Abs(scroll) > 0.1f)
                 {
-                    int currentInt = (int)CurrentSlot;
+                    _nextScrollSwitchTime = Time.time + 0.1f;
+
+                    // Buat daftar slot yang valid dan tersedia saat ini
+                    List<WeaponSlot> available = new List<WeaponSlot>(5)
+                    {
+                        WeaponSlot.Primary,
+                        WeaponSlot.Secondary,
+                        WeaponSlot.Melee
+                    };
+
+                    if (GrenadeCount > 0)
+                    {
+                        available.Add(WeaponSlot.Grenade);
+                    }
+
+                    if (HasC4)
+                    {
+                        available.Add(WeaponSlot.C4);
+                    }
+
+                    int currentIdx = available.IndexOf(CurrentSlot);
+                    if (currentIdx < 0) currentIdx = 0;
+
+                    int targetIdx;
                     if (scroll > 0f)
                     {
-                        // Scroll ke atas -> mundur slot
-                        currentInt--;
-                        if (currentInt < 1) currentInt = 4;
+                        // Scroll Up: Senjata sebelumnya (wrap-around)
+                        targetIdx = (currentIdx - 1 + available.Count) % available.Count;
                     }
                     else
                     {
-                        // Scroll ke bawah -> maju slot
-                        currentInt++;
-                        if (currentInt > 4) currentInt = 1;
+                        // Scroll Down: Senjata berikutnya (wrap-around)
+                        targetIdx = (currentIdx + 1) % available.Count;
                     }
 
-                    if (currentInt == 4 && !HasC4) currentInt = scroll > 0f ? 3 : 1;
-                    if (currentInt == 3 && GrenadeCount <= 0) currentInt = scroll > 0f ? 2 : 1;
-
-                    SwitchToSlot((WeaponSlot)currentInt);
+                    SwitchToSlot(available[targetIdx]);
                 }
             }
         }
@@ -411,6 +521,7 @@ namespace FPSFramework.Player
 
             // 1. Kunci penembakan senjata aktif
             if (ActiveGun != null) ActiveGun.FiringLocked = true;
+            if (_knifeWeapon != null) _knifeWeapon.AttackLocked = true;
 
             // 2. Animasi Holster (Turunkan senjata lama)
             if (currentObj != null)
@@ -446,6 +557,10 @@ namespace FPSFramework.Player
                 {
                     ActiveGun.PlayEquipSound();
                 }
+                else if (targetSlot == WeaponSlot.Melee && _knifeWeapon != null)
+                {
+                    _knifeWeapon.PlayEquipSound();
+                }
                 else if (targetSlot == WeaponSlot.Grenade && grenadeEquipSound != null && _managerAudioSource != null)
                 {
                     _managerAudioSource.pitch = Random.Range(0.97f, 1.03f);
@@ -466,6 +581,7 @@ namespace FPSFramework.Player
 
             // 4. Buka kembali kunci penembakan
             if (ActiveGun != null) ActiveGun.FiringLocked = false;
+            if (_knifeWeapon != null) _knifeWeapon.AttackLocked = false;
 
             IsSwitching = false;
             OnWeaponSwitched?.Invoke(CurrentSlot);
@@ -477,11 +593,13 @@ namespace FPSFramework.Player
 
             if (primaryWeaponObj != null) primaryWeaponObj.SetActive(slot == WeaponSlot.Primary);
             if (secondaryWeaponObj != null) secondaryWeaponObj.SetActive(slot == WeaponSlot.Secondary);
+            if (knifeViewmodelObj != null) knifeViewmodelObj.SetActive(slot == WeaponSlot.Melee);
             if (grenadeViewmodelObj != null) grenadeViewmodelObj.SetActive(slot == WeaponSlot.Grenade);
             if (c4ViewmodelObj != null) c4ViewmodelObj.SetActive(slot == WeaponSlot.C4);
 
             UpdateActiveGunReference();
             if (ActiveGun != null) ActiveGun.FiringLocked = false;
+            if (_knifeWeapon != null) _knifeWeapon.AttackLocked = false;
 
             OnWeaponSwitched?.Invoke(CurrentSlot);
         }
@@ -499,6 +617,7 @@ namespace FPSFramework.Player
             {
                 case WeaponSlot.Primary: return primaryWeaponObj;
                 case WeaponSlot.Secondary: return secondaryWeaponObj;
+                case WeaponSlot.Melee: return knifeViewmodelObj;
                 case WeaponSlot.Grenade: return grenadeViewmodelObj;
                 case WeaponSlot.C4: return c4ViewmodelObj;
                 default: return primaryWeaponObj;
@@ -632,6 +751,29 @@ namespace FPSFramework.Player
                 {
                     r.sharedMaterials = mats;
                 }
+            }
+        }
+
+        public static void SetLayerRecursively(GameObject obj, int newLayer)
+        {
+            if (obj == null) return;
+            obj.layer = newLayer;
+            foreach (Transform child in obj.transform)
+            {
+                if (child != null)
+                {
+                    SetLayerRecursively(child.gameObject, newLayer);
+                }
+            }
+        }
+
+        public static void StripAllColliders(GameObject obj)
+        {
+            if (obj == null) return;
+            Collider[] cols = obj.GetComponentsInChildren<Collider>(true);
+            foreach (var c in cols)
+            {
+                SafeDestroy(c);
             }
         }
 

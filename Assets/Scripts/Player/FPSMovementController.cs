@@ -315,7 +315,13 @@ namespace FPSFramework.Player
             }
             else
             {
-                TargetMaxSpeed = runSpeed;
+                float baseRun = runSpeed;
+                // Tactical Shooter Knife Sprint (+12% kecepatan lari saat memegang pisau)
+                if (FPSWeaponManager.Instance != null && FPSWeaponManager.Instance.ActiveSlot == WeaponSlot.Melee)
+                {
+                    baseRun *= 1.12f;
+                }
+                TargetMaxSpeed = baseRun;
             }
 
             // Ubah arah input lokal ke arah world transform pemain
