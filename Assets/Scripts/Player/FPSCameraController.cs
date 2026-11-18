@@ -156,9 +156,34 @@ namespace FPSFramework.Player
         private void Update()
         {
             HandleCursorToggle();
+
+            if (FPSFramework.UI.FPSMenuManager.Instance != null && 
+                (FPSFramework.UI.FPSMenuManager.Instance.IsMainMenuActive || FPSFramework.UI.FPSMenuManager.Instance.IsTransitioningFlyIn))
+            {
+                return;
+            }
+
             HandleLookRotation();
             HandleEyeHeightTransition();
             HandleHeadBobbing();
+        }
+
+        /// <summary>
+        /// Mendapatkan posisi dan rotasi mata bodi pemain di dunia (World Space).
+        /// Digunakan oleh sistem kamera sinematik untuk target transisi Fly-In.
+        /// </summary>
+        public void GetEyeWorldTransform(out Vector3 eyePos, out Quaternion eyeRot)
+        {
+            if (playerBody != null)
+            {
+                eyePos = playerBody.position + Vector3.up * standingEyeHeight + playerBody.forward * forwardEyeOffset;
+                eyeRot = Quaternion.Euler(0f, playerBody.eulerAngles.y, 0f);
+            }
+            else
+            {
+                eyePos = transform.position;
+                eyeRot = transform.rotation;
+            }
         }
 
         /// <summary>

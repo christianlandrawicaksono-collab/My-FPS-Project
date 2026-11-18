@@ -58,7 +58,19 @@ namespace FPSFramework.UI
         public bool IsMainMenuActive => CurrentState == MenuState.MainMenu;
         public bool IsPaused => CurrentState == MenuState.Paused;
         public bool IsMatchStarted { get; private set; } = false;
-        public bool IsCombatAllowed => CurrentState == MenuState.InGame;
+        public bool IsCombatAllowed => CurrentState == MenuState.InGame && !IsTransitioningFlyIn;
+        public bool IsTransitioningFlyIn { get; private set; } = false;
+
+        [Header("Cinematic Sky Camera & Fly-In")]
+        [SerializeField] private Vector3 skyCameraBasePos = new Vector3(14.0f, 13.5f, 38.0f);
+        [SerializeField] private Vector3 skyLookTarget = new Vector3(20.0f, 2.0f, 56.0f);
+        [SerializeField] private float flyInDuration = 1.6f;
+        [SerializeField] private float flyInArcHeight = 3.5f;
+
+        private Transform _camTransform;
+        private Vector3 _originalCamLocalPos;
+        private Quaternion _originalCamLocalRot;
+        private Coroutine _flyInRoutine;
 
         // State Pengaturan (PlayerPrefs Persistence)
         public float MouseSensitivity { get; private set; } = 1.5f;
@@ -104,6 +116,7 @@ namespace FPSFramework.UI
         private AudioClip _clickClip;
         private AudioClip _startChimeClip;
         private AudioClip _pauseClip;
+        private AudioClip _whooshClip;
         private Texture2D _pixelTex;
 
         // UI Styles
@@ -138,6 +151,7 @@ namespace FPSFramework.UI
             _clickClip = GenerateTone(1250f, 0.045f, 0.5f);
             _pauseClip = GenerateTwoTone(500f, 750f, 0.08f, 0.5f);
             _startChimeClip = GenerateMajorChord(0.5f);
+            _whooshClip = GenerateWhooshSound(1.2f);
 
             // Inisialisasi Tekstur Pixel
             _pixelTex = new Texture2D(1, 1);
@@ -155,11 +169,14 @@ namespace FPSFramework.UI
         {
             ApplySettingsToSystems();
 
+            CacheCameraReferences();
+
             if (CurrentState == MenuState.MainMenu)
             {
                 SetCursorMenuMode(true);
                 IsMatchStarted = false;
                 LockPlayerControls(true);
+                SetupSkyCamera();
             }
             else
             {
@@ -170,6 +187,7 @@ namespace FPSFramework.UI
         private void Update()
         {
             HandleKeyboardInput();
+            UpdateSkyCameraOrbit();
         }
 
         private void HandleKeyboardInput()
@@ -204,11 +222,29 @@ namespace FPSFramework.UI
 
         public void StartMatch()
         {
+            if (CurrentState == MenuState.MainMenu)
+            {
+                if (_flyInRoutine != null) StopCoroutine(_flyInRoutine);
+                _flyInRoutine = StartCoroutine(FlyInTransitionRoutine());
+                return;
+            }
+
+            CompleteMatchStart();
+        }
+
+        private void CompleteMatchStart()
+        {
             CurrentState = MenuState.InGame;
             IsMatchStarted = true;
             Time.timeScale = 1.0f;
             SetCursorMenuMode(false);
             LockPlayerControls(false);
+
+            var overlay = FindAnyObjectByType<FPSWeaponOverlayCamera>();
+            if (overlay != null)
+            {
+                overlay.SetOverlayVisible(true);
+            }
 
             PlaySound(_startChimeClip, 0.85f);
         }
@@ -249,11 +285,20 @@ namespace FPSFramework.UI
 
         public void ReturnToMainMenu()
         {
+            if (_flyInRoutine != null)
+            {
+                StopCoroutine(_flyInRoutine);
+                _flyInRoutine = null;
+            }
+            IsTransitioningFlyIn = false;
+
             CurrentState = MenuState.MainMenu;
             IsMatchStarted = false;
             Time.timeScale = 1.0f;
             SetCursorMenuMode(true);
             LockPlayerControls(true);
+
+            SetupSkyCamera();
 
             if (TacticalRoundManager.Instance != null)
             {
@@ -328,6 +373,16 @@ namespace FPSFramework.UI
         private void OnDisable()
         {
             Time.timeScale = 1.0f;
+            if (_camTransform != null)
+            {
+                _camTransform.localPosition = _originalCamLocalPos;
+                _camTransform.localRotation = _originalCamLocalRot;
+            }
+            var overlay = FindAnyObjectByType<FPSWeaponOverlayCamera>();
+            if (overlay != null)
+            {
+                overlay.SetOverlayVisible(true);
+            }
         }
 
         #endregion
@@ -416,6 +471,12 @@ namespace FPSFramework.UI
 
         private void OnGUI()
         {
+            if (IsTransitioningFlyIn)
+            {
+                DrawFlyInHint();
+                return;
+            }
+
             InitStyles();
 
             switch (CurrentState)
@@ -1115,6 +1176,182 @@ namespace FPSFramework.UI
             }
 
             AudioClip clip = AudioClip.Create("Proc_MajorChord", totalSamples, 1, sampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+
+        #endregion
+
+        #region Cinematic Sky Camera & Fly-In Helper Methods
+
+        private void CacheCameraReferences()
+        {
+            if (_camTransform == null)
+            {
+                Camera cam = Camera.main;
+                if (cam == null && FPSCameraController.Instance != null)
+                {
+                    cam = FPSCameraController.Instance.GetComponentInChildren<Camera>();
+                }
+                if (cam != null)
+                {
+                    _camTransform = cam.transform;
+                    _originalCamLocalPos = _camTransform.localPosition;
+                    _originalCamLocalRot = _camTransform.localRotation;
+                }
+            }
+        }
+
+        private void SetupSkyCamera()
+        {
+            CacheCameraReferences();
+            if (_camTransform == null) return;
+
+            _camTransform.position = skyCameraBasePos;
+            _camTransform.rotation = Quaternion.LookRotation(skyLookTarget - skyCameraBasePos);
+
+            var overlay = FindAnyObjectByType<FPSWeaponOverlayCamera>();
+            if (overlay != null)
+            {
+                overlay.SetOverlayVisible(false);
+            }
+        }
+
+        private void UpdateSkyCameraOrbit()
+        {
+            if (CurrentState != MenuState.MainMenu || IsTransitioningFlyIn || _camTransform == null) return;
+
+            float t = Time.unscaledTime;
+            float offsetX = Mathf.Sin(t * 0.35f) * 1.2f;
+            float offsetY = Mathf.Cos(t * 0.22f) * 0.35f;
+            float offsetZ = Mathf.Cos(t * 0.28f) * 1.0f;
+
+            Vector3 dynamicPos = skyCameraBasePos + new Vector3(offsetX, offsetY, offsetZ);
+            _camTransform.position = dynamicPos;
+            _camTransform.rotation = Quaternion.LookRotation(skyLookTarget - dynamicPos);
+        }
+
+        private void GetTargetEyeTransform(out Vector3 eyePos, out Quaternion eyeRot)
+        {
+            if (FPSCameraController.Instance != null)
+            {
+                FPSCameraController.Instance.GetEyeWorldTransform(out eyePos, out eyeRot);
+            }
+            else
+            {
+                GameObject player = GameObject.Find("Player_Capsule");
+                if (player != null)
+                {
+                    eyePos = player.transform.position + Vector3.up * 1.65f;
+                    eyeRot = Quaternion.Euler(0f, player.transform.eulerAngles.y, 0f);
+                }
+                else
+                {
+                    eyePos = new Vector3(0f, 2.65f, 66f);
+                    eyeRot = Quaternion.Euler(0f, 180f, 0f);
+                }
+            }
+        }
+
+        private IEnumerator FlyInTransitionRoutine()
+        {
+            IsTransitioningFlyIn = true;
+            SetCursorMenuMode(false);
+
+            CacheCameraReferences();
+            if (_camTransform == null)
+            {
+                CompleteMatchStart();
+                IsTransitioningFlyIn = false;
+                yield break;
+            }
+
+            Vector3 startPos = _camTransform.position;
+            Quaternion startRot = _camTransform.rotation;
+
+            Vector3 targetEyePos;
+            Quaternion targetEyeRot;
+            GetTargetEyeTransform(out targetEyePos, out targetEyeRot);
+
+            float duration = flyInDuration > 0.1f ? flyInDuration : 1.6f;
+            float elapsed = 0f;
+
+            PlaySound(_whooshClip, 0.75f);
+
+            while (elapsed < duration)
+            {
+                // Lewati transisi (Skip) jika pemain menekan Space, ESC, atau klik kiri mouse
+                if (Keyboard.current != null && (Keyboard.current.spaceKey.wasPressedThisFrame || Keyboard.current.escapeKey.wasPressedThisFrame) ||
+                    (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame))
+                {
+                    break;
+                }
+
+                elapsed += Time.unscaledDeltaTime;
+                float progress = Mathf.Clamp01(elapsed / duration);
+
+                // Easing Hermite SmoothStep
+                float smoothT = progress * progress * (3f - 2f * progress);
+
+                GetTargetEyeTransform(out targetEyePos, out targetEyeRot);
+
+                // Jalur parabola aerodinamis agar kamera tidak menabrak atap bangunan Site A
+                Vector3 currentPos = Vector3.Lerp(startPos, targetEyePos, smoothT);
+                currentPos.y += Mathf.Sin(progress * Mathf.PI) * flyInArcHeight;
+
+                _camTransform.position = currentPos;
+                _camTransform.rotation = Quaternion.Slerp(startRot, targetEyeRot, smoothT);
+
+                yield return null;
+            }
+
+            // Kembalikan posisi kamera secara presisi ke pivot kepala bodi
+            if (_camTransform != null)
+            {
+                _camTransform.localPosition = _originalCamLocalPos;
+                _camTransform.localRotation = _originalCamLocalRot;
+            }
+
+            IsTransitioningFlyIn = false;
+            CompleteMatchStart();
+        }
+
+        private void DrawFlyInHint()
+        {
+            InitStyles();
+            float w = 240f;
+            float h = 30f;
+            float x = Screen.width - w - 24f;
+            float y = Screen.height - h - 20f;
+
+            DrawSolidRect(new Rect(x, y, w, h), new Color(0.04f, 0.06f, 0.09f, 0.75f));
+            DrawBorder(new Rect(x, y, w, h), new Color(0.0f, 0.85f, 1.0f, 0.5f), 1f);
+
+            _labelStyle.normal.textColor = new Color(0.0f, 0.95f, 1.0f);
+            _labelStyle.fontSize = 11;
+            _labelStyle.fontStyle = FontStyle.Bold;
+            _labelStyle.alignment = TextAnchor.MiddleCenter;
+            GUI.Label(new Rect(x, y, w, h), "PRESS SPACE TO SKIP", _labelStyle);
+            _labelStyle.alignment = TextAnchor.MiddleLeft;
+        }
+
+        private AudioClip GenerateWhooshSound(float duration)
+        {
+            int sampleRate = 44100;
+            int totalSamples = Mathf.CeilToInt(sampleRate * duration);
+            float[] samples = new float[totalSamples];
+
+            for (int i = 0; i < totalSamples; i++)
+            {
+                float t = (float)i / totalSamples;
+                float env = Mathf.Sin(t * Mathf.PI);
+                float freq = 120f + Mathf.Sin(t * Mathf.PI) * 200f;
+                float phase = 2f * Mathf.PI * freq * ((float)i / sampleRate);
+                float noise = (UnityEngine.Random.value * 2f - 1f) * 0.35f;
+                samples[i] = (Mathf.Sin(phase) * 0.65f + noise) * env * 0.6f;
+            }
+
+            AudioClip clip = AudioClip.Create("FlyIn_Whoosh", totalSamples, 1, sampleRate, false);
             clip.SetData(samples, 0);
             return clip;
         }

@@ -196,5 +196,16 @@ namespace FPSFramework.Player
                 _overlayCamera.fieldOfView = fov;
             }
         }
+
+        /// <summary>
+        /// Mengatur visibilitas kamera viewmodel (misalnya saat di menu sinematik langit vs in-game).
+        /// </summary>
+        public void SetOverlayVisible(bool visible)
+        {
+            if (_overlayCamera != null)
+            {
+                _overlayCamera.enabled = visible;
+            }
+        }
     }
 }
