@@ -19,11 +19,11 @@ namespace FPSFramework.Player
     public class FPSWeaponOverlayCamera : MonoBehaviour
     {
         [Header("Pengaturan Tampilan Senjata (Viewmodel)")]
-        [Tooltip("Field of View khusus senjata (Standar CS / Valorant = 65f - 70f).")]
-        [SerializeField] private float viewmodelFOV = 68f;
+        [Tooltip("Field of View khusus senjata (Standar CS / Valorant = 65f - 85f).")]
+        [SerializeField] private float viewmodelFOV = 80f;
 
         [Tooltip("Jika dicentang, FOV senjata akan mengikuti FOV kamera utama.")]
-        [SerializeField] private bool matchMainCameraFOV = false;
+        [SerializeField] private bool matchMainCameraFOV = true;
 
         [Tooltip("Nama layer khusus untuk senjata dan viewmodel.")]
         [SerializeField] private string viewmodelLayerName = "Viewmodel";
@@ -127,7 +127,10 @@ namespace FPSFramework.Player
             if (_overlayCameraData != null)
             {
                 _overlayCameraData.renderType = CameraRenderType.Overlay;
+                ApplyClearDepth(_overlayCameraData);
             }
+
+            _overlayCamera.clearFlags = CameraClearFlags.Depth;
 
             EnsureCameraStackRegistered();
         }
@@ -140,6 +143,30 @@ namespace FPSFramework.Player
                 {
                     _baseCameraData.cameraStack.Add(_overlayCamera);
                 }
+            }
+
+            if (_overlayCameraData != null)
+            {
+                ApplyClearDepth(_overlayCameraData);
+            }
+        }
+
+        private void ApplyClearDepth(UniversalAdditionalCameraData camData)
+        {
+            if (camData == null) return;
+            try
+            {
+                // Mengaktifkan m_ClearDepth pada Overlay Camera URP agar depth buffer dunia di-clear
+                // Ini mencegah senjata tertutup/termakan oleh depth dinding saat berada dekat permukaan objek
+                var field = typeof(UniversalAdditionalCameraData).GetField("m_ClearDepth", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (field != null)
+                {
+                    field.SetValue(camData, true);
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[FPSWeaponOverlayCamera] Gagal mengaktifkan clearDepth via reflection: {ex.Message}");
             }
         }
 

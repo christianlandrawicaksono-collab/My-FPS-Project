@@ -19,6 +19,9 @@ namespace FPSFramework.Player
 
         public float MaxHealth => maxHealth;
         public float CurrentHealth { get; private set; }
+        public float CurrentArmor { get; private set; } = 0f;
+        public float MaxArmor => 100f;
+        public bool HasHelmet { get; private set; } = false;
         public bool IsDead { get; private set; }
         public bool AutoRespawn
         {
@@ -27,6 +30,7 @@ namespace FPSFramework.Player
         }
 
         public event Action<float, float> OnHealthChanged; // current, max
+        public event Action<float, float> OnArmorChanged;  // current, max
         public event Action<Vector3> OnDamaged;           // hitDirection
         public event Action OnDied;
         public event Action OnRespawned;
@@ -41,11 +45,68 @@ namespace FPSFramework.Player
             _spawnRotation = transform.rotation;
         }
 
+        public void SetArmor(float armor, bool helmet)
+        {
+            CurrentArmor = Mathf.Clamp(armor, 0f, MaxArmor);
+            HasHelmet = helmet;
+            OnArmorChanged?.Invoke(CurrentArmor, MaxArmor);
+        }
+
+        public void EquipHelmet()
+        {
+            HasHelmet = true;
+            OnArmorChanged?.Invoke(CurrentArmor, MaxArmor);
+        }
+
+        public void RepairArmor(float amount)
+        {
+            CurrentArmor = Mathf.Clamp(CurrentArmor + amount, 0f, MaxArmor);
+            OnArmorChanged?.Invoke(CurrentArmor, MaxArmor);
+        }
+
         public void TakeDamage(float damage, HitboxType hitbox, Vector3 hitPoint, Vector3 hitDirection)
         {
             if (IsDead) return;
 
-            CurrentHealth = Mathf.Max(0f, CurrentHealth - damage);
+            float damageToHealth = damage;
+            bool armorHit = false;
+
+            if (hitbox == HitboxType.Head)
+            {
+                if (HasHelmet && CurrentArmor > 0f)
+                {
+                    // Helm menyerap 50% damage ke armor dan 50% ke HP
+                    float armorAbsorb = damage * 0.5f;
+                    float absorbed = Mathf.Min(CurrentArmor, armorAbsorb);
+                    CurrentArmor -= absorbed;
+                    damageToHealth = (damage - absorbed);
+                    armorHit = true;
+                }
+                else
+                {
+                    // Tanpa helm: full 100% damage kritis ke HP
+                    damageToHealth = damage;
+                }
+            }
+            else
+            {
+                if (CurrentArmor > 0f)
+                {
+                    // Kevlar menyerap 50% damage body/limb
+                    float armorAbsorb = damage * 0.5f;
+                    float absorbed = Mathf.Min(CurrentArmor, armorAbsorb);
+                    CurrentArmor -= absorbed;
+                    damageToHealth = (damage - absorbed);
+                    armorHit = true;
+                }
+            }
+
+            if (armorHit)
+            {
+                OnArmorChanged?.Invoke(CurrentArmor, MaxArmor);
+            }
+
+            CurrentHealth = Mathf.Max(0f, CurrentHealth - damageToHealth);
             OnHealthChanged?.Invoke(CurrentHealth, maxHealth);
             OnDamaged?.Invoke(hitDirection);
 
@@ -97,6 +158,16 @@ namespace FPSFramework.Player
 
             OnHealthChanged?.Invoke(CurrentHealth, maxHealth);
             OnRespawned?.Invoke();
+        }
+
+        public void ResetArmorForNewRound(bool keepArmor)
+        {
+            if (!keepArmor)
+            {
+                CurrentArmor = 0f;
+                HasHelmet = false;
+            }
+            OnArmorChanged?.Invoke(CurrentArmor, MaxArmor);
         }
 
         public void SetSpawnPoint(Vector3 pos, Quaternion rot)

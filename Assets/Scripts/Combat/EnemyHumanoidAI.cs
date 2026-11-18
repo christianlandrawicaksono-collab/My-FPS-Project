@@ -200,8 +200,8 @@ namespace FPSFramework.Combat
                 return;
             }
 
-            // Kunci gerakan selama FreezeTime ronde
-            if (IsFrozen)
+            // Kunci gerakan & aksi selama FreezeTime ronde
+            if (IsFrozen || (TacticalRoundManager.Instance != null && TacticalRoundManager.Instance.State == RoundState.FreezeTime))
             {
                 if (_navAgent != null && _navAgent.isOnNavMesh) _navAgent.isStopped = true;
                 if (_animator != null) { _animator.SetFloat("Speed", 0f); _animator.SetFloat("MoveY", 0f); }
@@ -253,22 +253,14 @@ namespace FPSFramework.Combat
             switch (_currentState)
             {
                 case EnemyAIState.Patrol:
-                    // 1. Cek apakah bot pembawa bom sudah tiba di area plant
-                    if (hasC4 && PlantedC4.ActiveC4 == null)
+                    // 1. Cek apakah bot pembawa bom sudah tiba di area plant resmi (Site A atau Site B)
+                    if (hasC4 && PlantedC4.ActiveC4 == null && PlantZone.IsPositionInPlantZone(transform.position, out string site))
                     {
-                        bool inZone = PlantZone.IsPositionInPlantZone(transform.position, out string site);
-                        bool atLastWaypoint = _patrolWaypoints.Count > 0 &&
-                                              _currentWaypointIndex >= _patrolWaypoints.Count - 1 &&
-                                              Vector3.Distance(transform.position, _patrolWaypoints[_patrolWaypoints.Count - 1]) <= 3.2f;
-
-                        if (inZone || atLastWaypoint)
-                        {
-                            _currentState = EnemyAIState.PlantingC4;
-                            _plantProgress = 0f;
-                            if (_navAgent != null && _navAgent.isOnNavMesh) _navAgent.isStopped = true;
-                            if (_animator != null) { _animator.SetFloat("Speed", 0f); _animator.SetFloat("MoveY", 0f); }
-                            break;
-                        }
+                        _currentState = EnemyAIState.PlantingC4;
+                        _plantProgress = 0f;
+                        if (_navAgent != null && _navAgent.isOnNavMesh) _navAgent.isStopped = true;
+                        if (_animator != null) { _animator.SetFloat("Speed", 0f); _animator.SetFloat("MoveY", 0f); }
+                        break;
                     }
 
                     // 2. Evaluasi penglihatan musuh
@@ -299,18 +291,22 @@ namespace FPSFramework.Combat
                     }
 
                     // Bot berkomitmen menanam bom (durasi 3.5 detik) sampai selesai atau gugur
-
                     _plantProgress += Time.deltaTime;
                     if (_plantProgress >= 3.5f)
                     {
-                        string siteName = "Site A";
-                        PlantZone.IsPositionInPlantZone(transform.position, out siteName);
-                        if (string.IsNullOrEmpty(siteName)) siteName = transform.position.x > 0 ? "Site A" : "Site B";
-
-                        PlantedC4.SpawnPlantedC4(transform.position, transform.rotation, siteName);
-                        HasC4 = false;
-                        _currentState = EnemyAIState.DefendingBomb;
-                        Debug.Log($"[EnemyHumanoidAI] Bot {name} successfully planted C4 at {siteName}!");
+                        if (PlantZone.IsPositionInPlantZone(transform.position, out string siteName))
+                        {
+                            PlantedC4.SpawnPlantedC4(transform.position, transform.rotation, siteName);
+                            HasC4 = false;
+                            _currentState = EnemyAIState.DefendingBomb;
+                            Debug.Log($"[EnemyHumanoidAI] Bot {name} successfully planted C4 at {siteName}!");
+                        }
+                        else
+                        {
+                            // Bot tidak berada di zona resmi yang sah -> batalkan plant dan lanjutkan patroli
+                            _currentState = EnemyAIState.Patrol;
+                            _plantProgress = 0f;
+                        }
                     }
                     break;
 
@@ -424,8 +420,8 @@ namespace FPSFramework.Combat
 
             if (distToWaypoint <= waypointTolerance)
             {
-                // Jika bot membawa bom dan tiba di waypoint target terakhir (Site A atau Site B):
-                if (hasC4 && _currentWaypointIndex >= _patrolWaypoints.Count - 1 && PlantedC4.ActiveC4 == null)
+                // Jika bot membawa bom dan tiba di dalam zona resmi Plant (Site A atau Site B):
+                if (hasC4 && PlantedC4.ActiveC4 == null && PlantZone.IsPositionInPlantZone(transform.position, out string detectedSite))
                 {
                     _currentState = EnemyAIState.PlantingC4;
                     _plantProgress = 0f;

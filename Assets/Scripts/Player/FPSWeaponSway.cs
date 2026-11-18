@@ -126,6 +126,12 @@ namespace FPSFramework.Player
             {
                 wallObstacleLayers &= ~(1 << ignoreRaycastLayer);
             }
+
+            int vmLayer = LayerMask.NameToLayer("Viewmodel");
+            if (vmLayer >= 0)
+            {
+                wallObstacleLayers &= ~(1 << vmLayer);
+            }
         }
 
         private void LateUpdate()

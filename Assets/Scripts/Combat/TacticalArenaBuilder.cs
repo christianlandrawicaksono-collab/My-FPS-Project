@@ -545,7 +545,7 @@ namespace FPSFramework.Combat
             }
         }
 
-        public static void EnsureEnemyBotsExist()
+        public static void EnsureEnemyBotsExist(bool forceRespawn = false)
         {
             // Bersihkan dummy cyan, tombol mode, dan objek melayang di void
             CleanupStrayObjects();
@@ -561,7 +561,7 @@ namespace FPSFramework.Combat
                 new Vector3(20f, 0f, 52f),     // Site A Doorway
                 new Vector3(21f, 0f, 59.5f)    // Site A Plant Zone (Plant C4)
             };
-            CreateSingleEnemyBot("Enemy_Bot_Soldier_A", new Vector3(4f, 0f, 2f), waypointsA, hasC4: true);
+            CreateSingleEnemyBot("Enemy_Bot_Soldier_A", new Vector3(4f, 0f, 2f), waypointsA, hasC4: true, forceRespawn: forceRespawn);
 
             // Setup Bot B (T Attacker pendukung menuju Site B)
             List<Vector3> waypointsB = new List<Vector3>
@@ -573,42 +573,53 @@ namespace FPSFramework.Combat
                 new Vector3(-17f, 0f, 38f),    // Site B Main Front Doorway
                 new Vector3(-19.5f, 0f, 52f)   // Site B Plant Zone (Support / Attack)
             };
-            CreateSingleEnemyBot("Enemy_Bot_Soldier_B", new Vector3(-4f, 0f, 2f), waypointsB, hasC4: false);
+            CreateSingleEnemyBot("Enemy_Bot_Soldier_B", new Vector3(-4f, 0f, 2f), waypointsB, hasC4: false, forceRespawn: forceRespawn);
         }
 
-        private static void CreateSingleEnemyBot(string botName, Vector3 spawnPos, List<Vector3> waypoints, bool hasC4 = false)
+        private static void CreateSingleEnemyBot(string botName, Vector3 spawnPos, List<Vector3> waypoints, bool hasC4 = false, bool forceRespawn = false)
         {
             GameObject existingBot = GameObject.Find(botName);
             if (existingBot != null)
             {
-                if (existingBot.transform.position.y > 0.05f)
+                if (forceRespawn)
                 {
-                    Vector3 p = existingBot.transform.position;
-                    p.y = 0f;
-                    existingBot.transform.position = p;
+                    // Ubah nama sebelum dihancurkan agar GameObject.Find tidak mengalami tabrakan nama pada frame yang sama
+                    existingBot.name = botName + "_Dying_" + System.Guid.NewGuid().ToString("N");
+                    if (Application.isPlaying) Destroy(existingBot);
+                    else DestroyImmediate(existingBot);
                 }
+                else
+                {
+                    if (existingBot.transform.position.y > 0.05f)
+                    {
+                        Vector3 p = existingBot.transform.position;
+                        p.y = 0f;
+                        existingBot.transform.position = p;
+                    }
 
-                Transform rightHand = FindBoneRecursive(existingBot.transform, "RightHand");
-                Transform rifle = FindBoneRecursive(existingBot.transform, "Bot_Rifle");
-                if (rightHand != null && rifle != null && rifle.parent != rightHand)
-                {
-                    rifle.SetParent(rightHand, false);
-                    rifle.localPosition = new Vector3(0.06f, 0.08f, 0.15f);
-                    rifle.localRotation = Quaternion.Euler(0f, 90f, 0f);
-                    rifle.localScale = new Vector3(0.06f, 0.12f, 0.55f);
-                }
+                    Transform rightHand = FindBoneRecursive(existingBot.transform, "RightHand");
+                    Transform rifle = FindBoneRecursive(existingBot.transform, "Bot_Rifle");
+                    if (rightHand != null && rifle != null && rifle.parent != rightHand)
+                    {
+                        rifle.SetParent(rightHand, false);
+                        rifle.localPosition = new Vector3(0.06f, 0.08f, 0.15f);
+                        rifle.localRotation = Quaternion.Euler(0f, 90f, 0f);
+                        rifle.localScale = new Vector3(0.06f, 0.12f, 0.55f);
+                    }
 
-                EnemyHumanoidAI existingAI = existingBot.GetComponent<EnemyHumanoidAI>();
-                if (existingAI != null)
-                {
-                    if (waypoints != null) existingAI.SetCustomWaypoints(waypoints);
-                    existingAI.HasC4 = hasC4;
+                    EnemyHumanoidAI existingAI = existingBot.GetComponent<EnemyHumanoidAI>();
+                    if (existingAI != null)
+                    {
+                        if (waypoints != null) existingAI.SetCustomWaypoints(waypoints);
+                        existingAI.HasC4 = hasC4;
+                    }
+                    return;
                 }
-                return;
             }
 
             GameObject botObj = new GameObject(botName);
             botObj.transform.position = spawnPos;
+            botObj.transform.rotation = Quaternion.identity;
 
             Shader urpShader = Shader.Find("Universal Render Pipeline/Lit");
             if (urpShader == null) urpShader = Shader.Find("Standard");

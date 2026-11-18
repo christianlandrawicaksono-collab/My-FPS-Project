@@ -31,6 +31,7 @@ namespace FPSFramework.Combat
         public bool HasDetonated { get; private set; } = false;
         public float CurrentDefuseProgress { get; private set; } = 0f;
         public bool IsBeingDefused { get; private set; } = false;
+        public float RequiredDefuseTime => (FPSEconomyManager.Instance != null && FPSEconomyManager.Instance.HasDefuseKit) ? 5.0f : 10.0f;
 
         // Static Events
         public static event System.Action<PlantedC4, string> OnAnyC4Planted;
@@ -95,6 +96,24 @@ namespace FPSFramework.Combat
             FPSWeaponManager.FixRenderersMaterials(c4Root);
 
             return c4Comp;
+        }
+
+        /// <summary>
+        /// Membersihkan seketika seluruh C4 tertanam dari arena dan mengosongkan referensi statis ActiveC4.
+        /// </summary>
+        public static void ClearAllPlantedC4()
+        {
+            ActiveC4 = null;
+            PlantedC4[] allC4 = FindObjectsByType<PlantedC4>();
+            foreach (var c in allC4)
+            {
+                if (c != null)
+                {
+                    c.name = "Planted_C4_Destroyed";
+                    if (Application.isPlaying) Destroy(c.gameObject);
+                    else DestroyImmediate(c.gameObject);
+                }
+            }
         }
 
         private void Awake()
@@ -195,6 +214,9 @@ namespace FPSFramework.Combat
             // Tahan tombol E untuk defuse via New Input System
             bool isPressingE = (Keyboard.current != null && Keyboard.current.eKey.isPressed);
 
+            // Deteksi kepemilikan Defuse Kit (CS2 / Valorant rule: 5s with kit, 10s without kit)
+            float requiredDefuseTime = RequiredDefuseTime;
+
             if (isNearby && isPressingE)
             {
                 IsBeingDefused = true;
@@ -205,9 +227,9 @@ namespace FPSFramework.Combat
                     _audioSource.PlayOneShot(_defuseClickClip, 0.5f);
                 }
 
-                OnAnyDefuseProgress?.Invoke(CurrentDefuseProgress, defuseTimeRequired);
+                OnAnyDefuseProgress?.Invoke(CurrentDefuseProgress, requiredDefuseTime);
 
-                if (CurrentDefuseProgress >= defuseTimeRequired)
+                if (CurrentDefuseProgress >= requiredDefuseTime)
                 {
                     CompleteDefusal();
                 }
@@ -218,7 +240,7 @@ namespace FPSFramework.Combat
                 {
                     IsBeingDefused = false;
                     CurrentDefuseProgress = 0f;
-                    OnAnyDefuseProgress?.Invoke(0f, defuseTimeRequired);
+                    OnAnyDefuseProgress?.Invoke(0f, requiredDefuseTime);
                 }
             }
         }

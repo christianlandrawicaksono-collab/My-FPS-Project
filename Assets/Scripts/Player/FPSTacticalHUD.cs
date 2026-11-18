@@ -166,6 +166,13 @@ namespace FPSFramework.Player
                 GameObject roundMgr = new GameObject("TacticalRoundManager");
                 roundMgr.AddComponent<TacticalRoundManager>();
             }
+
+            // Pastikan FPSEconomyManager aktif di scene
+            if (FindAnyObjectByType<FPSEconomyManager>() == null)
+            {
+                GameObject ecoMgr = new GameObject("FPSEconomyManager");
+                ecoMgr.AddComponent<FPSEconomyManager>();
+            }
         }
 
         private void OnEnable()
@@ -399,8 +406,10 @@ namespace FPSFramework.Player
             // 2. Gambar Crosshair & Follow Recoil & Hitmarker
             DrawCrosshairAndHitmarker();
 
-            // 3. Gambar HUD Pojok Kiri Bawah (Health)
+            // 3. Gambar HUD Pojok Kiri Bawah (Health, Armor, Cash)
             DrawHealthWidget();
+            DrawArmorAndKitWidget();
+            DrawCashWidget();
 
             // 4. Gambar HUD Pojok Kanan Bawah (Weapon Slots & Ammo)
             DrawWeaponSlotsWidget();
@@ -429,6 +438,12 @@ namespace FPSFramework.Player
 
             // 9. Gambar Round State Transition Banner
             DrawRoundStateBanner();
+
+            // 10. Gambar Tactical Buy Menu jika tombol 'B' ditekan dan menu aktif
+            if (FPSEconomyManager.Instance != null && FPSEconomyManager.Instance.IsBuyMenuOpen)
+            {
+                DrawBuyMenuPanel();
+            }
         }
 
         #region Render Subsystems
@@ -514,6 +529,294 @@ namespace FPSFramework.Player
 
             DrawSolidRect(new Rect(barX, barY, barW, barH), new Color(0.18f, 0.2f, 0.24f, 1f));
             DrawSolidRect(new Rect(barX, barY, barW * hpRatio, barH), accentCol);
+        }
+
+        private void DrawArmorAndKitWidget()
+        {
+            float w = 180f;
+            float h = 64f;
+            float x = 260f;
+            float y = Screen.height - h - 30f;
+
+            float armor = 0f;
+            float maxArmor = 100f;
+            bool hasHelmet = false;
+
+            if (_playerHealth != null)
+            {
+                armor = _playerHealth.CurrentArmor;
+                maxArmor = _playerHealth.MaxArmor;
+                hasHelmet = _playerHealth.HasHelmet;
+            }
+
+            float armorRatio = Mathf.Clamp01(armor / Mathf.Max(1f, maxArmor));
+            Color armorCol = new Color(0.25f, 0.65f, 0.95f, 1f); // Tactical Cyan Shield
+
+            // Background panel
+            DrawSolidRect(new Rect(x, y, w, h), new Color(0.08f, 0.09f, 0.11f, 0.85f));
+            DrawBorder(new Rect(x, y, w, h), new Color(0.25f, 0.28f, 0.32f, 0.6f), 1f);
+
+            // Left accent bar
+            DrawSolidRect(new Rect(x, y, 4f, h), armorCol);
+
+            // Title & Value
+            _hudTitleStyle.normal.textColor = new Color(0.7f, 0.75f, 0.8f);
+            GUI.Label(new Rect(x + 14f, y + 8f, 60f, 20f), "ARMOR", _hudTitleStyle);
+
+            _hudBigNumStyle.normal.textColor = armor > 0f ? armorCol : new Color(0.45f, 0.48f, 0.52f);
+            GUI.Label(new Rect(x + 14f, y + 24f, 70f, 32f), $"{Mathf.CeilToInt(armor)}", _hudBigNumStyle);
+
+            // Horizontal Armor Bar Fill
+            float barX = x + 85f;
+            float barY = y + 36f;
+            float barW = 85f;
+            float barH = 10f;
+
+            DrawSolidRect(new Rect(barX, barY, barW, barH), new Color(0.18f, 0.2f, 0.24f, 1f));
+            if (armor > 0f)
+            {
+                DrawSolidRect(new Rect(barX, barY, barW * armorRatio, barH), armorCol);
+            }
+
+            // Badges: Helmet & Defuse Kit
+            float badgeX = x + 85f;
+            float badgeY = y + 10f;
+
+            if (hasHelmet)
+            {
+                DrawSolidRect(new Rect(badgeX, badgeY, 40f, 16f), new Color(0.85f, 0.70f, 0.15f, 0.9f));
+                GUIStyle badgeStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 9,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleCenter,
+                    normal = { textColor = Color.black }
+                };
+                GUI.Label(new Rect(badgeX, badgeY, 40f, 16f), "HELM", badgeStyle);
+                badgeX += 44f;
+            }
+
+            if (FPSEconomyManager.Instance != null && FPSEconomyManager.Instance.HasDefuseKit)
+            {
+                DrawSolidRect(new Rect(badgeX, badgeY, 36f, 16f), new Color(0.2f, 0.8f, 0.4f, 0.9f));
+                GUIStyle kitStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 9,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleCenter,
+                    normal = { textColor = Color.black }
+                };
+                GUI.Label(new Rect(badgeX, badgeY, 36f, 16f), "KIT", kitStyle);
+            }
+        }
+
+        private void DrawCashWidget()
+        {
+            int cash = FPSEconomyManager.Instance != null ? FPSEconomyManager.Instance.CurrentCash : 800;
+
+            float w = 220f;
+            float h = 32f;
+            float x = 30f;
+            float y = Screen.height - 64f - 30f - 38f;
+
+            DrawSolidRect(new Rect(x, y, w, h), new Color(0.08f, 0.09f, 0.11f, 0.85f));
+            DrawBorder(new Rect(x, y, w, h), new Color(0.25f, 0.28f, 0.32f, 0.6f), 1f);
+
+            // Left accent green neon
+            DrawSolidRect(new Rect(x, y, 4f, h), new Color(0.2f, 0.9f, 0.4f));
+
+            GUIStyle cashStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 18,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleLeft,
+                normal = { textColor = new Color(0.25f, 0.95f, 0.45f) }
+            };
+            GUI.Label(new Rect(x + 14f, y + 4f, 120f, 24f), $"${cash:N0}", cashStyle);
+
+            // Buy Menu Hint button
+            if (FPSEconomyManager.Instance != null && FPSEconomyManager.Instance.IsBuyPeriodActive)
+            {
+                GUIStyle hintStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 10,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleRight,
+                    normal = { textColor = new Color(0.7f, 0.75f, 0.8f) }
+                };
+                GUI.Label(new Rect(x + w - 75f, y + 4f, 65f, 24f), "[B] BUY", hintStyle);
+            }
+        }
+
+        private void DrawBuyMenuPanel()
+        {
+            FPSEconomyManager eco = FPSEconomyManager.Instance;
+            if (eco == null) return;
+
+            float panelW = 760f;
+            float panelH = 470f;
+            float panelX = (Screen.width - panelW) * 0.5f;
+            float panelY = (Screen.height - panelH) * 0.5f;
+
+            // Dim background overlay
+            DrawSolidRect(new Rect(0, 0, Screen.width, Screen.height), new Color(0f, 0f, 0f, 0.65f));
+
+            // Main Window Panel
+            DrawSolidRect(new Rect(panelX, panelY, panelW, panelH), new Color(0.09f, 0.11f, 0.14f, 0.96f));
+            DrawBorder(new Rect(panelX, panelY, panelW, panelH), new Color(0.25f, 0.75f, 0.95f, 0.85f), 2f);
+
+            // Header Bar
+            DrawSolidRect(new Rect(panelX, panelY, panelW, 52f), new Color(0.06f, 0.07f, 0.09f, 1f));
+            DrawSolidRect(new Rect(panelX, panelY + 50f, panelW, 2f), new Color(0.25f, 0.75f, 0.95f, 0.6f));
+
+            GUIStyle titleStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 18,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleLeft,
+                normal = { textColor = Color.white }
+            };
+            GUI.Label(new Rect(panelX + 20f, panelY + 14f, 320f, 28f), "TACTICAL REQUISITION / BUY MENU", titleStyle);
+
+            // Timer & Saldo
+            GUIStyle infoStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 13,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleRight,
+                normal = { textColor = new Color(0.25f, 0.95f, 0.45f) }
+            };
+            GUI.Label(new Rect(panelX + panelW - 320f, panelY + 14f, 300f, 28f), $"BUY TIME: {Mathf.CeilToInt(eco.BuyTimeRemaining)}s   |   CASH: ${eco.CurrentCash:N0}", infoStyle);
+
+            // Footer bar
+            DrawSolidRect(new Rect(panelX, panelY + panelH - 36f, panelW, 36f), new Color(0.06f, 0.07f, 0.09f, 1f));
+            GUIStyle footerStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 11,
+                fontStyle = FontStyle.Normal,
+                alignment = TextAnchor.MiddleCenter,
+                normal = { textColor = new Color(0.6f, 0.65f, 0.7f) }
+            };
+            GUI.Label(new Rect(panelX, panelY + panelH - 32f, panelW, 28f), "PRESS [B] OR [ESC] TO CLOSE BUY MENU", footerStyle);
+
+            // Content Columns: 3 Columns
+            float colW = 230f;
+            float colGap = 15f;
+            float startX = panelX + 20f;
+            float startY = panelY + 65f;
+
+            // Kolom 1: GEAR & DEFENSE
+            DrawBuyCategoryColumn(startX, startY, colW, "EQUIPMENT & DEFENSE");
+            DrawBuyItemButton(startX, startY + 30f, colW, 70f, "KEVLAR VEST", "$650", "Body damage reduction 50%",
+                eco.CurrentCash >= 650 && (_playerHealth == null || _playerHealth.CurrentArmor < 100f),
+                _playerHealth != null && _playerHealth.CurrentArmor >= 100f && !_playerHealth.HasHelmet,
+                () => eco.TryBuyKevlarVest());
+
+            DrawBuyItemButton(startX, startY + 108f, colW, 70f, "KEVLAR + HELMET", "$1,000", "Headshot lethal defense 50%",
+                eco.CurrentCash >= 1000 && (_playerHealth == null || !_playerHealth.HasHelmet || _playerHealth.CurrentArmor < 100f),
+                _playerHealth != null && _playerHealth.HasHelmet && _playerHealth.CurrentArmor >= 100f,
+                () => eco.TryBuyFullKevlarAndHelmet());
+
+            DrawBuyItemButton(startX, startY + 186f, colW, 70f, "HELMET UPGRADE", "$350", "Upgrade existing Kevlar with Helmet",
+                eco.CurrentCash >= 350 && (_playerHealth != null && _playerHealth.CurrentArmor > 0f && !_playerHealth.HasHelmet),
+                _playerHealth != null && _playerHealth.HasHelmet,
+                () => eco.TryBuyHelmetOnly());
+
+            DrawBuyItemButton(startX, startY + 264f, colW, 70f, "DEFUSE KIT", "$400", "Cuts bomb defuse time 10s -> 5s",
+                eco.CurrentCash >= 400 && !eco.HasDefuseKit,
+                eco.HasDefuseKit,
+                () => eco.TryBuyDefuseKit());
+
+            // Kolom 2: WEAPONS
+            float col2X = startX + colW + colGap;
+            DrawBuyCategoryColumn(col2X, startY, colW, "FIREARMS");
+            DrawBuyItemButton(col2X, startY + 30f, colW, 70f, "SMG-K TACTICAL", "$1,500", "Full-auto Submachine Gun (30/90)",
+                eco.CurrentCash >= 1500,
+                false,
+                () => eco.TryBuySMGK());
+
+            DrawBuyItemButton(col2X, startY + 108f, colW, 70f, "REFILL AMMO", "$200", "Refill primary reserve ammo",
+                eco.CurrentCash >= 200,
+                false,
+                () => eco.TryBuySMGAmmo());
+
+            // Kolom 3: GRENADES
+            float col3X = col2X + colW + colGap;
+            DrawBuyCategoryColumn(col3X, startY, colW, "TACTICAL GRENADES");
+            int nadeCount = FPSWeaponManager.Instance != null ? FPSWeaponManager.Instance.GrenadeCount : 0;
+            DrawBuyItemButton(col3X, startY + 30f, colW, 70f, "FRAG GRENADE", "$300", $"High explosive blast radius ({nadeCount}/1)",
+                eco.CurrentCash >= 300 && nadeCount < 1,
+                nadeCount >= 1,
+                () => eco.TryBuyFragGrenade());
+        }
+
+        private void DrawBuyCategoryColumn(float x, float y, float w, string title)
+        {
+            DrawSolidRect(new Rect(x, y, w, 22f), new Color(0.14f, 0.16f, 0.20f, 0.9f));
+            GUIStyle catStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 11,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                normal = { textColor = new Color(0.25f, 0.75f, 0.95f) }
+            };
+            GUI.Label(new Rect(x, y, w, 22f), title, catStyle);
+        }
+
+        private void DrawBuyItemButton(float x, float y, float w, float h, string itemName, string price, string desc, bool canAfford, bool isOwned, System.Action onBuy)
+        {
+            Rect btnRect = new Rect(x, y, w, h);
+            bool hover = btnRect.Contains(Event.current.mousePosition);
+
+            Color bgColor = isOwned ? new Color(0.08f, 0.14f, 0.12f, 0.9f) :
+                            (canAfford ? (hover ? new Color(0.18f, 0.22f, 0.28f, 0.95f) : new Color(0.12f, 0.14f, 0.18f, 0.9f))
+                                       : new Color(0.10f, 0.10f, 0.12f, 0.7f));
+
+            DrawSolidRect(btnRect, bgColor);
+            Color borderColor = isOwned ? new Color(0.2f, 0.8f, 0.4f, 0.8f) :
+                                (canAfford ? (hover ? new Color(0.25f, 0.75f, 0.95f, 1f) : new Color(0.3f, 0.35f, 0.42f, 0.7f))
+                                           : new Color(0.2f, 0.22f, 0.25f, 0.5f));
+            DrawBorder(btnRect, borderColor, hover ? 1.5f : 1f);
+
+            // Title
+            GUIStyle nameStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 12,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleLeft,
+                normal = { textColor = canAfford || isOwned ? Color.white : new Color(0.5f, 0.55f, 0.6f) }
+            };
+            GUI.Label(new Rect(x + 10f, y + 8f, w - 80f, 18f), itemName, nameStyle);
+
+            // Price / Owned Badge
+            GUIStyle priceStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 12,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleRight,
+                normal = { textColor = isOwned ? new Color(0.2f, 0.9f, 0.4f) : (canAfford ? new Color(0.25f, 0.95f, 0.45f) : new Color(0.9f, 0.3f, 0.3f)) }
+            };
+            GUI.Label(new Rect(x + w - 75f, y + 8f, 65f, 18f), isOwned ? "OWNED" : price, priceStyle);
+
+            // Description
+            GUIStyle descStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 10,
+                fontStyle = FontStyle.Normal,
+                alignment = TextAnchor.UpperLeft,
+                normal = { textColor = new Color(0.6f, 0.65f, 0.72f) }
+            };
+            GUI.Label(new Rect(x + 10f, y + 28f, w - 20f, 36f), desc, descStyle);
+
+            // Click detection
+            if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && btnRect.Contains(Event.current.mousePosition))
+            {
+                if (canAfford && !isOwned)
+                {
+                    onBuy?.Invoke();
+                }
+                Event.current.Use();
+            }
         }
 
         private void DrawDamageFlashVignette()
@@ -771,10 +1074,14 @@ namespace FPSFramework.Player
                 DrawBorder(new Rect(bx, by, bw, bh), new Color(0.0f, 0.95f, 1.0f, 0.85f), 1.5f);
 
                 _hudTitleStyle.normal.textColor = new Color(0.0f, 0.95f, 1.0f);
-                float progressRatio = Mathf.Clamp01(c4.CurrentDefuseProgress / 5.0f);
-                float timeLeft = Mathf.Max(0f, 5.0f - c4.CurrentDefuseProgress);
+                float targetTime = c4.RequiredDefuseTime;
+                float progressRatio = Mathf.Clamp01(c4.CurrentDefuseProgress / Mathf.Max(0.1f, targetTime));
+                float timeLeft = Mathf.Max(0f, targetTime - c4.CurrentDefuseProgress);
 
-                GUI.Label(new Rect(bx + 14f, by + 6f, 200f, 18f), "DEFUSING BOMB [E] ...", _hudTitleStyle);
+                bool hasKit = (FPSEconomyManager.Instance != null && FPSEconomyManager.Instance.HasDefuseKit);
+                string defuseLabel = hasKit ? "DEFUSING WITH KIT [E] ..." : "DEFUSING WITHOUT KIT [E] ...";
+
+                GUI.Label(new Rect(bx + 14f, by + 6f, 230f, 18f), defuseLabel, _hudTitleStyle);
                 _hudSubStyle.normal.textColor = Color.white;
                 GUI.Label(new Rect(bx + bw - 60f, by + 6f, 50f, 18f), $"{timeLeft:F1}s", _hudSubStyle);
 

@@ -62,6 +62,7 @@ namespace FPSFramework.Player
         public int FragGrenades => GrenadeCount;
         public bool HasC4 { get; set; } = false;
         public bool IsSwitching { get; private set; } = false;
+        public bool WeaponsLocked { get; private set; } = false;
 
         // Static Events
         public static event System.Action<WeaponSlot> OnWeaponSwitched;
@@ -78,6 +79,28 @@ namespace FPSFramework.Player
         private AudioSource _managerAudioSource;
 
         public FPSKnife ActiveKnife => _knifeWeapon;
+
+        /// <summary>
+        /// Mengunci atau membuka akses tembakan dan serangan untuk semua senjata di inventory.
+        /// </summary>
+        public void SetWeaponsLocked(bool locked)
+        {
+            WeaponsLocked = locked;
+            if (_primaryGun != null) _primaryGun.FiringLocked = locked;
+            if (_secondaryGun != null) _secondaryGun.FiringLocked = locked;
+            if (_knifeWeapon != null) _knifeWeapon.AttackLocked = locked;
+        }
+
+        /// <summary>
+        /// Mengecek apakah aksi kombat (tembak, serang, lempar) sedang diblokir oleh sistem round atau buy menu.
+        /// </summary>
+        public bool IsCombatActionBlocked()
+        {
+            if (WeaponsLocked) return true;
+            if (FPSEconomyManager.Instance != null && FPSEconomyManager.Instance.IsBuyMenuOpen) return true;
+            if (TacticalRoundManager.Instance != null && TacticalRoundManager.Instance.State == RoundState.FreezeTime) return true;
+            return false;
+        }
 
         private void Awake()
         {
@@ -283,9 +306,10 @@ namespace FPSFramework.Player
                 SafeDestroy(pistolObj.GetComponent<Collider>());
             }
 
-            // Posisi & rotasi ergonomis Pistol di layar
-            pistolObj.transform.localPosition = new Vector3(0.20f, -0.22f, 0.44f);
+            // Posisi, rotasi & skala ergonomis Pistol di layar (relatif terhadap Weapon_Holder)
+            pistolObj.transform.localPosition = new Vector3(-0.02f, 0.02f, 0.06f);
             pistolObj.transform.localRotation = Quaternion.identity;
+            pistolObj.transform.localScale = Vector3.one * 0.95f;
 
             // Pasang komponen FPSWeapon untuk pistol
             FPSWeapon pistolWeapon = pistolObj.GetComponent<FPSWeapon>();
@@ -348,10 +372,10 @@ namespace FPSFramework.Player
                 SafeDestroy(knifeObj.GetComponent<Collider>());
             }
 
-            // Posisi & rotasi ergonomis pisau taktis di sudut kanan bawah pandangan
-            knifeObj.transform.localPosition = new Vector3(0.24f, -0.24f, 0.45f);
+            // Posisi, rotasi & skala ergonomis pisau taktis di sudut kanan bawah pandangan (relatif terhadap Weapon_Holder)
+            knifeObj.transform.localPosition = new Vector3(0.01f, 0.02f, 0.06f);
             knifeObj.transform.localRotation = Quaternion.Euler(-10f, 25f, -15f);
-            knifeObj.transform.localScale = Vector3.one * 0.95f;
+            knifeObj.transform.localScale = Vector3.one * 1.25f;
 
             // Hapus seluruh collider agar pisau tidak memblokir raycast tembakan senjata
             Collider[] cols = knifeObj.GetComponentsInChildren<Collider>();
@@ -388,9 +412,9 @@ namespace FPSFramework.Player
                 SafeDestroy(nadeObj.GetComponent<Collider>());
             }
 
-            nadeObj.transform.localPosition = new Vector3(0.18f, -0.20f, 0.42f);
+            nadeObj.transform.localPosition = new Vector3(-0.03f, 0.02f, 0.03f);
             nadeObj.transform.localRotation = Quaternion.Euler(15f, -30f, 0f);
-            nadeObj.transform.localScale = Vector3.one * 0.85f;
+            nadeObj.transform.localScale = Vector3.one * 1.0f;
 
             // Hapus collider bawaan viewmodel agar tidak mengganggu raycast
             Collider[] cols = nadeObj.GetComponentsInChildren<Collider>();
@@ -424,9 +448,9 @@ namespace FPSFramework.Player
                 SafeDestroy(c4Obj.GetComponent<Collider>());
             }
 
-            c4Obj.transform.localPosition = new Vector3(0.16f, -0.22f, 0.40f);
-            c4Obj.transform.localRotation = Quaternion.Euler(25f, -20f, 0f);
-            c4Obj.transform.localScale = Vector3.one * 0.75f;
+            c4Obj.transform.localPosition = new Vector3(-0.04f, 0.01f, 0.02f);
+            c4Obj.transform.localRotation = Quaternion.Euler(20f, -20f, 0f);
+            c4Obj.transform.localScale = Vector3.one * 0.9f;
 
             Collider[] cols = c4Obj.GetComponentsInChildren<Collider>();
             foreach (var c in cols) SafeDestroy(c);
@@ -579,9 +603,10 @@ namespace FPSFramework.Player
                 nextObj.transform.localPosition = targetPos;
             }
 
-            // 4. Buka kembali kunci penembakan
-            if (ActiveGun != null) ActiveGun.FiringLocked = false;
-            if (_knifeWeapon != null) _knifeWeapon.AttackLocked = false;
+            // 4. Buka kembali kunci penembakan HANYA jika aksi kombat tidak sedang diblokir
+            bool blocked = IsCombatActionBlocked();
+            if (ActiveGun != null) ActiveGun.FiringLocked = blocked;
+            if (_knifeWeapon != null) _knifeWeapon.AttackLocked = blocked;
 
             IsSwitching = false;
             OnWeaponSwitched?.Invoke(CurrentSlot);
@@ -598,8 +623,9 @@ namespace FPSFramework.Player
             if (c4ViewmodelObj != null) c4ViewmodelObj.SetActive(slot == WeaponSlot.C4);
 
             UpdateActiveGunReference();
-            if (ActiveGun != null) ActiveGun.FiringLocked = false;
-            if (_knifeWeapon != null) _knifeWeapon.AttackLocked = false;
+            bool blocked = IsCombatActionBlocked();
+            if (ActiveGun != null) ActiveGun.FiringLocked = blocked;
+            if (_knifeWeapon != null) _knifeWeapon.AttackLocked = blocked;
 
             OnWeaponSwitched?.Invoke(CurrentSlot);
         }
@@ -627,6 +653,7 @@ namespace FPSFramework.Player
         private void HandleGrenadeInput()
         {
             if (CurrentSlot != WeaponSlot.Grenade || GrenadeCount <= 0 || IsSwitching) return;
+            if (IsCombatActionBlocked()) return;
 
             if (Mouse.current == null) return;
 
@@ -703,6 +730,15 @@ namespace FPSFramework.Player
         {
             yield return new WaitForSeconds(0.35f);
             SwitchToSlot(WeaponSlot.Primary);
+        }
+
+        /// <summary>
+        /// Menambahkan amunisi granat tanpa mereset loadout atau memicu penggantian slot senjata aktif.
+        /// </summary>
+        public void AddGrenade(int amount = 1)
+        {
+            GrenadeCount = Mathf.Clamp(GrenadeCount + amount, 0, 1);
+            OnGrenadeCountChanged?.Invoke(GrenadeCount);
         }
 
         /// <summary>

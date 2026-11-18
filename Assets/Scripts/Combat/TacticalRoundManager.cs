@@ -155,6 +155,12 @@ namespace FPSFramework.Combat
         {
             while (PlayerScore < targetRoundWins && BotScore < targetRoundWins)
             {
+                // Reset status bom dan bersihkan arena secara instan di awal FreezeTime
+                _bombPlanted = false;
+                _bombDefused = false;
+                _bombExploded = false;
+                PlantedC4.ClearAllPlantedC4();
+
                 // 1. FASE FREEZETIME (4 Detik)
                 State = RoundState.FreezeTime;
                 RemainingTime = freezeTimeDuration;
@@ -162,7 +168,6 @@ namespace FPSFramework.Combat
                 OnRoundStateChanged?.Invoke(State);
 
                 // Pastikan referensi lengkap dan reset entitas
-                FindEntities();
                 ResetAllEntitiesForNewRound();
                 LockControls(true);
 
@@ -186,10 +191,6 @@ namespace FPSFramework.Combat
                 OnRoundStateChanged?.Invoke(State);
                 PlayBeep(_beepHigh, 0.85f);
                 LockControls(false);
-
-                _bombPlanted = false;
-                _bombDefused = false;
-                _bombExploded = false;
 
                 bool roundEnded = false;
                 while (!roundEnded)
@@ -353,7 +354,14 @@ namespace FPSFramework.Combat
         private void LockControls(bool locked)
         {
             if (_playerMovement != null) _playerMovement.MovementLocked = locked;
-            if (_playerWeapon != null) _playerWeapon.FiringLocked = locked;
+            if (FPSWeaponManager.Instance != null)
+            {
+                FPSWeaponManager.Instance.SetWeaponsLocked(locked);
+            }
+            else if (_playerWeapon != null)
+            {
+                _playerWeapon.FiringLocked = locked;
+            }
 
             foreach (var bot in _activeBots)
             {
@@ -363,14 +371,42 @@ namespace FPSFramework.Combat
 
         private void ResetAllEntitiesForNewRound()
         {
-            // 0. Pastikan kedua bot dijamin ada dan terdeteksi
-            TacticalArenaBuilder.EnsureEnemyBotsExist();
+            // 0. Bersihkan seluruh bom tertanam & terjatuh secara instan
+            PlantedC4.ClearAllPlantedC4();
+            GameObject[] allObjs = FindObjectsByType<GameObject>();
+            foreach (var go in allObjs)
+            {
+                if (go != null && go.name.StartsWith("Dropped_C4_Dynamite")) Destroy(go);
+            }
+
+            // Clean Respawn Architecture: Hancurkan bot lama yang rusak/ragdoll dan spawn bot baru yang 100% segar
+            TacticalArenaBuilder.EnsureEnemyBotsExist(forceRespawn: true);
             FindEntities();
+
+            // Cek apakah pemain bertahan hidup di ronde sebelumnya (Save Round / Carry-over)
+            bool playerSurvived = (_playerHealth != null && !_playerHealth.IsDead);
+
+            // Reward Ekonomi Ronde dan buka durasi Buy Period (CS2 / Valorant style)
+            if (FPSEconomyManager.Instance != null)
+            {
+                if (CurrentRound > 1)
+                {
+                    FPSEconomyManager.Instance.RewardRoundOutcome(DidPlayerWinLastRound);
+                }
+                FPSEconomyManager.Instance.StartNewRoundBuyPeriod();
+
+                // Reset Defuse Kit jika pemain gugur di ronde sebelumnya
+                if (!playerSurvived)
+                {
+                    FPSEconomyManager.Instance.ResetKitOnDeath();
+                }
+            }
 
             // 1. Reset Pemain CT di CT Spawn
             if (_playerHealth != null)
             {
                 _playerHealth.ResetHealthForNewRound(playerSpawnPos, Quaternion.Euler(0f, 180f, 0f));
+                _playerHealth.ResetArmorForNewRound(playerSurvived);
             }
 
             if (_playerWeapon != null)
@@ -378,44 +414,32 @@ namespace FPSFramework.Combat
                 _playerWeapon.ResetAmmoAndRecoil();
             }
 
-            // Reset Loadout Pemain via WeaponManager (1 free grenade, full ammo, slot 1 equip)
+            // Reset Loadout Pemain via WeaponManager
             if (FPSWeaponManager.Instance != null)
             {
-                FPSWeaponManager.Instance.ResetRoundLoadout();
+                if (!playerSurvived)
+                {
+                    FPSWeaponManager.Instance.ResetRoundLoadout();
+                }
+                else
+                {
+                    // Pemain selamat (Save Round): amunisi diisi ulang, senjata & armor terbawa
+                    if (FPSWeaponManager.Instance.ActiveGun != null)
+                    {
+                        FPSWeaponManager.Instance.ActiveGun.ResetAmmoAndRecoil();
+                    }
+                }
             }
 
             // 2. Bersihkan bekas lubang peluru di arena
             FPSWeapon.ClearAllBulletHoles();
 
-            // 3. Bersihkan bom C4 tertanam atau terjatuh di arena
-            PlantedC4[] c4s = FindObjectsByType<PlantedC4>();
-            foreach (var c in c4s)
-            {
-                if (c != null) Destroy(c.gameObject);
-            }
-            GameObject[] allObjs = FindObjectsByType<GameObject>();
-            foreach (var go in allObjs)
-            {
-                if (go != null && go.name.StartsWith("Dropped_C4_Dynamite")) Destroy(go);
-            }
-
-            // 4. Reset Kedua Bot di T-Spawn
+            // 3. Kunci kedua bot baru selama fase FreezeTime
             foreach (var bot in _activeBots)
             {
-                if (bot == null) continue;
-
-                Vector3 spawn = bot.name.Contains("_B") ? botBSpawnPos : botASpawnPos;
-                Quaternion rot = Quaternion.identity; // Menghadap Utara (+Z)
-                bot.ResetForRound(spawn, rot);
-
-                // Bot A membawa C4 setiap awal ronde
-                if (bot.name.Contains("_A"))
+                if (bot != null)
                 {
-                    bot.HasC4 = true;
-                }
-                else
-                {
-                    bot.HasC4 = false;
+                    bot.IsFrozen = true;
                 }
             }
         }

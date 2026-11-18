@@ -66,6 +66,8 @@ namespace FPSFramework.Player
         [Header("Kursor")]
         [SerializeField] private bool lockCursorOnStart = true;
 
+        public bool CameraLookLocked { get; set; } = false;
+
         // State internal
         private float _currentPitch = 0f;
         private float _currentEyeHeight;
@@ -147,7 +149,7 @@ namespace FPSFramework.Player
         /// </summary>
         private void HandleLookRotation()
         {
-            if (Cursor.lockState != CursorLockMode.Locked) return;
+            if (CameraLookLocked || Cursor.lockState != CursorLockMode.Locked) return;
 
             Vector2 lookInput = inputReader != null ? inputReader.LookInput : Vector2.zero;
 
