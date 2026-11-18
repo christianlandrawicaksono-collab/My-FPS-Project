@@ -86,8 +86,16 @@ namespace FPSFramework.Player
         public void SetWeaponsLocked(bool locked)
         {
             WeaponsLocked = locked;
-            if (_primaryGun != null) _primaryGun.FiringLocked = locked;
-            if (_secondaryGun != null) _secondaryGun.FiringLocked = locked;
+            if (_primaryGun != null)
+            {
+                _primaryGun.FiringLocked = locked;
+                if (locked) _primaryGun.CancelReload();
+            }
+            if (_secondaryGun != null)
+            {
+                _secondaryGun.FiringLocked = locked;
+                if (locked) _secondaryGun.CancelReload();
+            }
             if (_knifeWeapon != null) _knifeWeapon.AttackLocked = locked;
         }
 
@@ -544,13 +552,20 @@ namespace FPSFramework.Player
             GameObject currentObj = GetWeaponObject(CurrentSlot);
             GameObject nextObj = GetWeaponObject(targetSlot);
 
-            // 1. Kunci penembakan senjata aktif
-            if (ActiveGun != null) ActiveGun.FiringLocked = true;
+            // 1. Kunci penembakan senjata aktif dan batalkan proses reload jika sedang berlangsung
+            if (ActiveGun != null)
+            {
+                ActiveGun.CancelReload();
+                ActiveGun.FiringLocked = true;
+            }
             if (_knifeWeapon != null) _knifeWeapon.AttackLocked = true;
 
             // 2. Animasi Holster (Turunkan senjata lama)
             if (currentObj != null)
             {
+                FPSWeapon currentGun = currentObj.GetComponent<FPSWeapon>();
+                if (currentGun != null) currentGun.CancelReload();
+
                 Vector3 origPos = currentObj.transform.localPosition;
                 Vector3 downPos = origPos + Vector3.down * 0.14f;
                 float t = 0f;
@@ -615,6 +630,8 @@ namespace FPSFramework.Player
 
         private void SelectSlotImmediate(WeaponSlot slot)
         {
+            if (ActiveGun != null) ActiveGun.CancelReload();
+
             CurrentSlot = slot;
 
             if (primaryWeaponObj != null) primaryWeaponObj.SetActive(slot == WeaponSlot.Primary);

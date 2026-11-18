@@ -170,6 +170,7 @@ namespace FPSFramework.Player
         public bool FiringLocked { get; set; } = false;
 
         private float _reloadTimer;
+        private Coroutine _reloadRoutine;
 
         // Pola Semprotan Taktikal SMG_K (30 Peluru) - Kurva Tajam & Menantang
         private static readonly Vector2[] SprayPattern = new Vector2[]
@@ -308,6 +309,46 @@ namespace FPSFramework.Player
 #endif
         }
 
+        private void OnEnable()
+        {
+            CancelReload();
+            _kickbackOffset = Vector3.zero;
+            if (_originalLocalPos != Vector3.zero)
+            {
+                transform.localPosition = _originalLocalPos;
+                transform.localRotation = _originalLocalRot;
+            }
+        }
+
+        private void OnDisable()
+        {
+            CancelReload();
+            _currentSprayBloom = 0f;
+            BurstBulletIndex = 0;
+            CurrentSprayOffset = Vector2.zero;
+        }
+
+        /// <summary>
+        /// Membatalkan proses reload yang sedang berlangsung seketika (contoh: quick-switch senjata).
+        /// Mereset flag IsReloading, menghentikan coroutine dan audio reload agar senjata tidak macet.
+        /// </summary>
+        public void CancelReload()
+        {
+            if (_reloadRoutine != null)
+            {
+                StopCoroutine(_reloadRoutine);
+                _reloadRoutine = null;
+            }
+
+            IsReloading = false;
+            _reloadTimer = 0f;
+
+            if (_audioSource != null && _audioSource.isPlaying)
+            {
+                _audioSource.Stop();
+            }
+        }
+
         private void Update()
         {
             HandleRecovery();
@@ -323,7 +364,8 @@ namespace FPSFramework.Player
             // Trigger Reload
             if (_inputReader.ConsumeReloadTriggered() && !IsReloading && CurrentAmmo < magazineSize)
             {
-                StartCoroutine(ReloadRoutine());
+                if (_reloadRoutine != null) StopCoroutine(_reloadRoutine);
+                _reloadRoutine = StartCoroutine(ReloadRoutine());
                 return;
             }
 
@@ -337,7 +379,8 @@ namespace FPSFramework.Player
                 else
                 {
                     // Auto reload jika peluru habis
-                    StartCoroutine(ReloadRoutine());
+                    if (_reloadRoutine != null) StopCoroutine(_reloadRoutine);
+                    _reloadRoutine = StartCoroutine(ReloadRoutine());
                 }
             }
         }
@@ -757,7 +800,11 @@ namespace FPSFramework.Player
 
         private IEnumerator ReloadRoutine()
         {
-            if (ReserveAmmo <= 0 || CurrentAmmo >= magazineSize) yield break;
+            if (ReserveAmmo <= 0 || CurrentAmmo >= magazineSize)
+            {
+                _reloadRoutine = null;
+                yield break;
+            }
 
             IsReloading = true;
             _reloadTimer = 0f;
@@ -783,6 +830,7 @@ namespace FPSFramework.Player
 
             IsReloading = false;
             _reloadTimer = 0f;
+            _reloadRoutine = null;
         }
 
         private void HandleRecovery()

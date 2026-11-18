@@ -123,9 +123,33 @@ namespace FPSFramework.Player
 
         private void OnEnable()
         {
-            transform.localPosition = _defaultLocalPos;
-            transform.localRotation = _defaultLocalRot;
+            if (_activeAnimRoutine != null)
+            {
+                StopCoroutine(_activeAnimRoutine);
+                _activeAnimRoutine = null;
+            }
+            IsAttacking = false;
+            if (_defaultLocalPos != Vector3.zero)
+            {
+                transform.localPosition = _defaultLocalPos;
+                transform.localRotation = _defaultLocalRot;
+            }
             PlayEquipSound();
+        }
+
+        private void OnDisable()
+        {
+            if (_activeAnimRoutine != null)
+            {
+                StopCoroutine(_activeAnimRoutine);
+                _activeAnimRoutine = null;
+            }
+            IsAttacking = false;
+            if (_defaultLocalPos != Vector3.zero)
+            {
+                transform.localPosition = _defaultLocalPos;
+                transform.localRotation = _defaultLocalRot;
+            }
         }
 
         private void Update()
