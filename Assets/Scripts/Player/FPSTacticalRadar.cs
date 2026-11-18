@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using FPSFramework.Combat;
+using FPSFramework.UI;
 
 namespace FPSFramework.Player
 {
@@ -93,6 +94,7 @@ namespace FPSFramework.Player
 
         private void OnGUI()
         {
+            if (FPSMenuManager.Instance != null && !FPSMenuManager.Instance.IsCombatAllowed) return;
             if (Event.current.type != EventType.Repaint) return;
             if (_playerCamera == null && Camera.main != null) _playerCamera = Camera.main;
 

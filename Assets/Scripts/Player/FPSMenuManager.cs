@@ -511,20 +511,20 @@ namespace FPSFramework.UI
             // Dimmed screen backdrop
             DrawSolidRect(new Rect(0, 0, Screen.width, Screen.height), new Color(0.02f, 0.03f, 0.05f, 0.75f));
 
-            float w = 460f;
-            float h = 480f;
+            float w = 440f;
+            float h = 370f;
             float x = (Screen.width - w) * 0.5f;
-            float y = (Screen.height - h) * 0.5f;
+            float y = Mathf.Max(12f, (Screen.height - h) * 0.5f);
 
             // Box Container
-            DrawSolidRect(new Rect(x, y, w, h), new Color(0.05f, 0.07f, 0.1f, 0.95f));
+            DrawSolidRect(new Rect(x, y, w, h), new Color(0.05f, 0.07f, 0.1f, 0.96f));
             DrawBorder(new Rect(x, y, w, h), new Color(0.0f, 0.85f, 1.0f, 0.7f), 1.5f);
             DrawSolidRect(new Rect(x, y, w, 4f), new Color(0.0f, 0.95f, 1.0f, 1f));
 
             // Header Pause
             _headerStyle.normal.textColor = Color.white;
             _headerStyle.alignment = TextAnchor.MiddleCenter;
-            GUI.Label(new Rect(x, y + 20f, w, 32f), "MATCH PAUSED", _headerStyle);
+            GUI.Label(new Rect(x, y + 14f, w, 26f), "MATCH PAUSED", _headerStyle);
 
             string roundInfo = TacticalRoundManager.Instance != null ?
                 $"ROUND {TacticalRoundManager.Instance.CurrentRound} // SCORE: CT {TacticalRoundManager.Instance.PlayerScore} - {TacticalRoundManager.Instance.BotScore} T" :
@@ -532,14 +532,14 @@ namespace FPSFramework.UI
 
             _subTitleStyle.normal.textColor = new Color(0.0f, 0.85f, 1.0f);
             _subTitleStyle.alignment = TextAnchor.MiddleCenter;
-            GUI.Label(new Rect(x, y + 54f, w, 22f), roundInfo, _subTitleStyle);
+            GUI.Label(new Rect(x, y + 42f, w, 20f), roundInfo, _subTitleStyle);
             _subTitleStyle.alignment = TextAnchor.MiddleLeft;
 
             float btnW = 340f;
-            float btnH = 46f;
+            float btnH = 38f;
             float btnX = x + (w - btnW) * 0.5f;
-            float btnY = y + 95f;
-            float spacing = 12f;
+            float btnY = y + 72f;
+            float spacing = 8f;
 
             if (DrawTacticalButton(new Rect(btnX, btnY, btnW, btnH), "RESUME MATCH", "Continue battle [ESC]", true))
             {
@@ -582,10 +582,10 @@ namespace FPSFramework.UI
             // Dimmed backdrop
             DrawSolidRect(new Rect(0, 0, Screen.width, Screen.height), new Color(0.02f, 0.03f, 0.05f, 0.82f));
 
-            float w = 680f;
-            float h = 590f;
+            float w = 660f;
+            float h = 450f;
             float x = (Screen.width - w) * 0.5f;
-            float y = (Screen.height - h) * 0.5f;
+            float y = Mathf.Max(10f, (Screen.height - h) * 0.5f);
 
             // Main Panel
             DrawSolidRect(new Rect(x, y, w, h), new Color(0.05f, 0.07f, 0.1f, 0.96f));
@@ -595,59 +595,59 @@ namespace FPSFramework.UI
             // Header
             _headerStyle.normal.textColor = Color.white;
             _headerStyle.alignment = TextAnchor.MiddleCenter;
-            GUI.Label(new Rect(x, y + 18f, w, 32f), "TACTICAL SETTINGS & OPTICS", _headerStyle);
+            GUI.Label(new Rect(x, y + 14f, w, 26f), "TACTICAL SETTINGS & OPTICS", _headerStyle);
             _headerStyle.alignment = TextAnchor.MiddleLeft;
 
-            float contentX = x + 36f;
-            float contentW = w - 72f;
-            float curY = y + 65f;
+            float contentX = x + 30f;
+            float contentW = w - 60f;
+            float curY = y + 46f;
 
             // SECTION 1: MOUSE & INPUT CONTROLS
             DrawCategoryHeader(contentX, curY, contentW, "1. MOUSE & INPUT CONTROLS");
-            curY += 28f;
+            curY += 22f;
 
-            _tempSensitivity = DrawSlider(new Rect(contentX, curY, contentW, 36f), "MOUSE SENSITIVITY", _tempSensitivity, 0.2f, 4.0f, $"{_tempSensitivity:F2}x");
-            curY += 40f;
+            _tempSensitivity = DrawSlider(new Rect(contentX, curY, contentW, 26f), "MOUSE SENSITIVITY", _tempSensitivity, 0.2f, 4.0f, $"{_tempSensitivity:F2}x");
+            curY += 30f;
 
-            _tempInvertY = DrawToggle(new Rect(contentX, curY, contentW, 28f), "INVERT VERTICAL LOOK (Y-AXIS)", _tempInvertY);
-            curY += 40f;
+            _tempInvertY = DrawToggle(new Rect(contentX, curY, contentW, 24f), "INVERT VERTICAL LOOK (Y-AXIS)", _tempInvertY);
+            curY += 30f;
 
             // SECTION 2: OPTICS & DISPLAY
             DrawCategoryHeader(contentX, curY, contentW, "2. OPTICS & RETICLE DISPLAY");
-            curY += 28f;
+            curY += 22f;
 
-            _tempFOV = DrawSlider(new Rect(contentX, curY, contentW, 36f), "FIELD OF VIEW (FOV)", _tempFOV, 60f, 100f, $"{Mathf.RoundToInt(_tempFOV)} DEG");
-            curY += 40f;
+            _tempFOV = DrawSlider(new Rect(contentX, curY, contentW, 26f), "FIELD OF VIEW (FOV)", _tempFOV, 60f, 100f, $"{Mathf.RoundToInt(_tempFOV)} DEG");
+            curY += 30f;
 
             // Crosshair Color Selector & Live Preview Box
             curY = DrawCrosshairColorSelector(contentX, curY, contentW);
-            curY += 15f;
+            curY += 10f;
 
             // SECTION 3: AUDIO MASTER
             DrawCategoryHeader(contentX, curY, contentW, "3. AUDIO MASTER");
-            curY += 28f;
+            curY += 22f;
 
-            _tempMasterVol = DrawSlider(new Rect(contentX, curY, contentW, 36f), "MASTER VOLUME", _tempMasterVol, 0.0f, 1.0f, $"{Mathf.RoundToInt(_tempMasterVol * 100f)}%");
-            curY += 40f;
+            _tempMasterVol = DrawSlider(new Rect(contentX, curY, contentW, 26f), "MASTER VOLUME", _tempMasterVol, 0.0f, 1.0f, $"{Mathf.RoundToInt(_tempMasterVol * 100f)}%");
+            curY += 30f;
 
-            _tempSFXVol = DrawSlider(new Rect(contentX, curY, contentW, 36f), "SFX & COMBAT VOLUME", _tempSFXVol, 0.0f, 1.0f, $"{Mathf.RoundToInt(_tempSFXVol * 100f)}%");
-            curY += 50f;
+            _tempSFXVol = DrawSlider(new Rect(contentX, curY, contentW, 26f), "SFX & COMBAT VOLUME", _tempSFXVol, 0.0f, 1.0f, $"{Mathf.RoundToInt(_tempSFXVol * 100f)}%");
+            curY += 36f;
 
             // ACTION BUTTONS: [SAVE & APPLY], [RESET DEFAULTS], [BACK]
-            float btnW = (contentW - 20f) / 3f;
-            float btnH = 42f;
+            float btnW = (contentW - 16f) / 3f;
+            float btnH = 36f;
 
             if (DrawTacticalButton(new Rect(contentX, curY, btnW, btnH), "SAVE & APPLY", "", true))
             {
                 SaveSettings();
             }
 
-            if (DrawTacticalButton(new Rect(contentX + btnW + 10f, curY, btnW, btnH), "RESET DEFAULTS", "", false))
+            if (DrawTacticalButton(new Rect(contentX + btnW + 8f, curY, btnW, btnH), "RESET DEFAULTS", "", false))
             {
                 ResetSettingsToDefault();
             }
 
-            if (DrawTacticalButton(new Rect(contentX + (btnW + 10f) * 2f, curY, btnW, btnH), "BACK [ESC]", "", false))
+            if (DrawTacticalButton(new Rect(contentX + (btnW + 8f) * 2f, curY, btnW, btnH), "BACK [ESC]", "", false))
             {
                 ReturnFromSubmenu();
             }
@@ -658,10 +658,10 @@ namespace FPSFramework.UI
             // Dimmed backdrop
             DrawSolidRect(new Rect(0, 0, Screen.width, Screen.height), new Color(0.02f, 0.03f, 0.05f, 0.82f));
 
-            float w = 780f;
-            float h = 570f;
+            float w = 760f;
+            float h = 450f;
             float x = (Screen.width - w) * 0.5f;
-            float y = (Screen.height - h) * 0.5f;
+            float y = Mathf.Max(10f, (Screen.height - h) * 0.5f);
 
             // Main Panel
             DrawSolidRect(new Rect(x, y, w, h), new Color(0.05f, 0.07f, 0.1f, 0.96f));
@@ -671,15 +671,15 @@ namespace FPSFramework.UI
             // Header
             _headerStyle.normal.textColor = Color.white;
             _headerStyle.alignment = TextAnchor.MiddleCenter;
-            GUI.Label(new Rect(x, y + 18f, w, 32f), "TACTICAL CONTROLS & FIELD MANUAL", _headerStyle);
+            GUI.Label(new Rect(x, y + 14f, w, 26f), "TACTICAL CONTROLS & FIELD MANUAL", _headerStyle);
             _headerStyle.alignment = TextAnchor.MiddleLeft;
 
-            float colW = 345f;
-            float colH = 195f;
-            float col1X = x + 30f;
-            float col2X = x + w - colW - 30f;
-            float row1Y = y + 65f;
-            float row2Y = row1Y + colH + 16f;
+            float colW = 340f;
+            float colH = 155f;
+            float col1X = x + 25f;
+            float col2X = x + w - colW - 25f;
+            float row1Y = y + 46f;
+            float row2Y = row1Y + colH + 10f;
 
             // 1. Movement Box
             DrawGuideBox(col1X, row1Y, colW, colH, "MOVEMENT CONTROLS", new string[,]
@@ -722,10 +722,10 @@ namespace FPSFramework.UI
             });
 
             // Back Button
-            float btnW = 220f;
-            float btnH = 42f;
+            float btnW = 200f;
+            float btnH = 34f;
             float btnX = x + (w - btnW) * 0.5f;
-            float btnY = y + h - btnH - 18f;
+            float btnY = y + h - btnH - 12f;
 
             if (DrawTacticalButton(new Rect(btnX, btnY, btnW, btnH), "BACK [ESC]", "", true))
             {
@@ -869,15 +869,15 @@ namespace FPSFramework.UI
             _labelStyle.normal.textColor = Color.white;
             _labelStyle.fontSize = 12;
             _labelStyle.fontStyle = FontStyle.Bold;
-            GUI.Label(new Rect(startX, startY + 6f, labelW, 24f), "CROSSHAIR COLOR", _labelStyle);
+            GUI.Label(new Rect(startX, startY + 4f, labelW, 22f), "CROSSHAIR COLOR", _labelStyle);
 
             float swatchX = startX + labelW + 10f;
-            float swatchSize = 26f;
-            float spacing = 8f;
+            float swatchSize = 24f;
+            float spacing = 6f;
 
             for (int i = 0; i < CrosshairPalette.Length; i++)
             {
-                Rect swRect = new Rect(swatchX + i * (swatchSize + spacing), startY + 4f, swatchSize, swatchSize);
+                Rect swRect = new Rect(swatchX + i * (swatchSize + spacing), startY + 2f, swatchSize, swatchSize);
                 bool isSelected = (_tempCrosshairColorIdx == i);
 
                 DrawSolidRect(swRect, CrosshairPalette[i]);
@@ -898,7 +898,7 @@ namespace FPSFramework.UI
             }
 
             // Live Crosshair Preview Box
-            float previewSize = 54f;
+            float previewSize = 44f;
             float previewX = startX + totalW - previewSize - 10f;
             float previewY = startY - 8f;
             Rect prevBox = new Rect(previewX, previewY, previewSize, previewSize);
@@ -911,7 +911,7 @@ namespace FPSFramework.UI
             float cx = prevBox.x + previewSize * 0.5f;
             float cy = prevBox.y + previewSize * 0.5f;
             float gap = 3f;
-            float len = 8f;
+            float len = 7f;
             float th = 2f;
 
             DrawSolidRect(new Rect(cx - len - gap, cy - th * 0.5f, len, th), crossCol); // Left
@@ -919,13 +919,13 @@ namespace FPSFramework.UI
             DrawSolidRect(new Rect(cx - th * 0.5f, cy - len - gap, th, len), crossCol); // Top
             DrawSolidRect(new Rect(cx - th * 0.5f, cy + gap, th, len), crossCol);         // Bottom
 
-            return startY + 36f;
+            return startY + 30f;
         }
 
         private void DrawCategoryHeader(float x, float y, float w, string title)
         {
-            DrawSolidRect(new Rect(x, y, w, 22f), new Color(0.0f, 0.85f, 1.0f, 0.12f));
-            DrawSolidRect(new Rect(x, y, 3f, 22f), new Color(0.0f, 0.95f, 1.0f));
+            DrawSolidRect(new Rect(x, y, w, 20f), new Color(0.0f, 0.85f, 1.0f, 0.12f));
+            DrawSolidRect(new Rect(x, y, 3f, 20f), new Color(0.0f, 0.95f, 1.0f));
 
             _labelStyle.normal.textColor = new Color(0.0f, 0.95f, 1.0f);
             _labelStyle.fontSize = 11;
@@ -937,15 +937,15 @@ namespace FPSFramework.UI
         {
             DrawSolidRect(new Rect(x, y, w, h), new Color(0.07f, 0.09f, 0.13f, 0.92f));
             DrawBorder(new Rect(x, y, w, h), new Color(0.22f, 0.28f, 0.36f, 0.7f), 1f);
-            DrawSolidRect(new Rect(x, y, w, 26f), new Color(0.0f, 0.85f, 1.0f, 0.15f));
-            DrawSolidRect(new Rect(x, y, 3f, 26f), new Color(0.0f, 0.95f, 1.0f));
+            DrawSolidRect(new Rect(x, y, w, 22f), new Color(0.0f, 0.85f, 1.0f, 0.15f));
+            DrawSolidRect(new Rect(x, y, 3f, 22f), new Color(0.0f, 0.95f, 1.0f));
 
             _labelStyle.normal.textColor = new Color(0.0f, 0.95f, 1.0f);
             _labelStyle.fontSize = 11;
             _labelStyle.fontStyle = FontStyle.Bold;
-            GUI.Label(new Rect(x + 10f, y + 4f, w - 20f, 20f), title, _labelStyle);
+            GUI.Label(new Rect(x + 10f, y + 2f, w - 20f, 18f), title, _labelStyle);
 
-            float rowY = y + 34f;
+            float rowY = y + 26f;
             int count = keyPairs.GetLength(0);
             for (int i = 0; i < count; i++)
             {
@@ -954,17 +954,17 @@ namespace FPSFramework.UI
 
                 // Key Badge
                 _valueLabelStyle.normal.textColor = Color.white;
-                _valueLabelStyle.fontSize = 11;
+                _valueLabelStyle.fontSize = 10;
                 _valueLabelStyle.fontStyle = FontStyle.Bold;
-                GUI.Label(new Rect(x + 12f, rowY, 130f, 22f), key, _valueLabelStyle);
+                GUI.Label(new Rect(x + 10f, rowY, 115f, 20f), key, _valueLabelStyle);
 
                 // Description
                 _labelStyle.normal.textColor = new Color(0.7f, 0.76f, 0.84f);
-                _labelStyle.fontSize = 11;
+                _labelStyle.fontSize = 10;
                 _labelStyle.fontStyle = FontStyle.Normal;
-                GUI.Label(new Rect(x + 144f, rowY, w - 150f, 22f), desc, _labelStyle);
+                GUI.Label(new Rect(x + 128f, rowY, w - 136f, 20f), desc, _labelStyle);
 
-                rowY += 28f;
+                rowY += 24f;
             }
         }
 

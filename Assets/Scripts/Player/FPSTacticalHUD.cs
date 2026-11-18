@@ -408,8 +408,8 @@ namespace FPSFramework.Player
 
         private void OnGUI()
         {
-            // Sembunyikan seluruh HUD in-game jika berada di Main Menu awal
-            if (FPSFramework.UI.FPSMenuManager.Instance != null && FPSFramework.UI.FPSMenuManager.Instance.IsMainMenuActive)
+            // Sembunyikan seluruh HUD in-game jika berada di menu (Main Menu, Pause, Settings, Controls)
+            if (FPSFramework.UI.FPSMenuManager.Instance != null && !FPSFramework.UI.FPSMenuManager.Instance.IsCombatAllowed)
             {
                 return;
             }
