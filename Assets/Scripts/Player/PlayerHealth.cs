@@ -17,6 +17,10 @@ namespace FPSFramework.Player
         [SerializeField] private bool autoRespawn = true;
         [SerializeField] private float respawnDelay = 3.5f;
 
+        [Header("Pengaturan Mitigasi Armor (CS2 Standard)")]
+        [SerializeField] private float bodyArmorAbsorptionRatio = 0.65f; // 65% diserap armor, 35% tembus ke HP
+        [SerializeField] private float helmetAbsorptionRatio = 0.70f;    // 70% diserap helm/armor, 30% tembus ke HP
+
         public float MaxHealth => maxHealth;
         public float CurrentHealth { get; private set; }
         public float CurrentArmor { get; private set; } = 0f;
@@ -75,8 +79,8 @@ namespace FPSFramework.Player
             {
                 if (HasHelmet && CurrentArmor > 0f)
                 {
-                    // Helm menyerap 50% damage ke armor dan 50% ke HP
-                    float armorAbsorb = damage * 0.5f;
+                    // Helm menyerap 70% damage ke armor dan hanya 30% tembus ke HP
+                    float armorAbsorb = damage * helmetAbsorptionRatio;
                     float absorbed = Mathf.Min(CurrentArmor, armorAbsorb);
                     CurrentArmor -= absorbed;
                     damageToHealth = (damage - absorbed);
@@ -92,8 +96,8 @@ namespace FPSFramework.Player
             {
                 if (CurrentArmor > 0f)
                 {
-                    // Kevlar menyerap 50% damage body/limb
-                    float armorAbsorb = damage * 0.5f;
+                    // Kevlar menyerap 65% damage ke armor dan hanya 35% tembus ke HP
+                    float armorAbsorb = damage * bodyArmorAbsorptionRatio;
                     float absorbed = Mathf.Min(CurrentArmor, armorAbsorb);
                     CurrentArmor -= absorbed;
                     damageToHealth = (damage - absorbed);
