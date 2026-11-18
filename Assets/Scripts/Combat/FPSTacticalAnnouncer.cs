@@ -58,12 +58,23 @@ namespace FPSFramework.Combat
         [SerializeField] private AudioClip tenSecondsClip;
         [SerializeField] private AudioClip targetDestroyedClip;
 
+        [Header("Tingkat 3: Combat Acclaims & Tactical Comms Audio Clips")]
+        [SerializeField] private AudioClip headshotClip;
+        [SerializeField] private AudioClip doubleKillClip;
+        [SerializeField] private AudioClip aceClip;
+        [SerializeField] private AudioClip knifeKillClip;
+        [SerializeField] private AudioClip fragOutClip;
+        [SerializeField] private AudioClip defusingBombClip;
+
         // Audio & State
         private AudioSource _audioSource;
         private AudioClip _radioClickClip;
         private readonly Queue<AudioClip> _voiceQueue = new Queue<AudioClip>();
         private Coroutine _queueRoutine;
         private bool _tenSecondsTriggered = false;
+        private bool _defuseVoiceTriggeredThisRound = false;
+        private float _lastKillTime = -99f;
+        private int _roundKills = 0;
 
         private void Awake()
         {
@@ -93,6 +104,9 @@ namespace FPSFramework.Combat
             PlantedC4.OnAnyC4Planted += HandleC4Planted;
             PlantedC4.OnAnyC4Defused += HandleC4Defused;
             PlantedC4.OnAnyC4Exploded += HandleC4Exploded;
+            PlantedC4.OnAnyDefuseStarted += HandleDefuseStarted;
+            EnemyHumanoidAI.OnAnyEnemyDied += HandleEnemyDied;
+            FPSWeaponManager.OnAnyGrenadeThrown += HandleGrenadeThrown;
         }
 
         private void OnDisable()
@@ -101,6 +115,9 @@ namespace FPSFramework.Combat
             PlantedC4.OnAnyC4Planted -= HandleC4Planted;
             PlantedC4.OnAnyC4Defused -= HandleC4Defused;
             PlantedC4.OnAnyC4Exploded -= HandleC4Exploded;
+            PlantedC4.OnAnyDefuseStarted -= HandleDefuseStarted;
+            EnemyHumanoidAI.OnAnyEnemyDied -= HandleEnemyDied;
+            FPSWeaponManager.OnAnyGrenadeThrown -= HandleGrenadeThrown;
         }
 
         private void Update()
@@ -137,6 +154,13 @@ namespace FPSFramework.Combat
             if (bombDefusedClip == null) bombDefusedClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "bomb_defused.mp3");
             if (tenSecondsClip == null) tenSecondsClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "ten_seconds.mp3");
             if (targetDestroyedClip == null) targetDestroyedClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "target_destroyed.mp3");
+
+            if (headshotClip == null) headshotClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "headshot.mp3");
+            if (doubleKillClip == null) doubleKillClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "double_kill.mp3");
+            if (aceClip == null) aceClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "ace.mp3");
+            if (knifeKillClip == null) knifeKillClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "knife_kill.mp3");
+            if (fragOutClip == null) fragOutClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "frag_out.mp3");
+            if (defusingBombClip == null) defusingBombClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "defusing_bomb.mp3");
 #endif
         }
 
@@ -150,6 +174,9 @@ namespace FPSFramework.Combat
             if (newState == RoundState.FreezeTime)
             {
                 _tenSecondsTriggered = false;
+                _defuseVoiceTriggeredThisRound = false;
+                _roundKills = 0;
+                _lastKillTime = -99f;
             }
             else if (newState == RoundState.RoundActive)
             {
@@ -239,6 +266,50 @@ namespace FPSFramework.Combat
         private void HandleC4Exploded(PlantedC4 c4)
         {
             PlayVoice(targetDestroyedClip, 0.6f);
+        }
+
+        private void HandleEnemyDied(EnemyHumanoidAI enemy)
+        {
+            _roundKills++;
+
+            bool isKnifeKill = FPSWeaponManager.Instance != null && FPSWeaponManager.Instance.CurrentSlot == WeaponSlot.Melee;
+
+            if (isKnifeKill)
+            {
+                PlayVoice(knifeKillClip);
+            }
+            else if (enemy != null && enemy.WasHeadshot)
+            {
+                PlayVoice(headshotClip);
+            }
+
+            // Multi-Kill Tracking (Double Kill dalam < 4 detik)
+            float timeSinceLastKill = Time.time - _lastKillTime;
+            if (timeSinceLastKill <= 4.0f && _roundKills == 2)
+            {
+                PlayVoice(doubleKillClip, 0.45f);
+            }
+            _lastKillTime = Time.time;
+
+            // Ace Callout (Semua 2 bot mati dibantai oleh pemain)
+            if (_roundKills == 2)
+            {
+                PlayVoice(aceClip, 1.0f);
+            }
+        }
+
+        private void HandleGrenadeThrown()
+        {
+            PlayVoice(fragOutClip);
+        }
+
+        private void HandleDefuseStarted(PlantedC4 c4)
+        {
+            if (!_defuseVoiceTriggeredThisRound)
+            {
+                _defuseVoiceTriggeredThisRound = true;
+                PlayVoice(defusingBombClip);
+            }
         }
 
         #endregion

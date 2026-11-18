@@ -67,6 +67,7 @@ namespace FPSFramework.Player
         // Static Events
         public static event System.Action<WeaponSlot> OnWeaponSwitched;
         public static event System.Action<int> OnGrenadeCountChanged;
+        public static event System.Action OnAnyGrenadeThrown;
 
         private FPSWeapon _primaryGun;
         private FPSWeapon _secondaryGun;
@@ -692,6 +693,7 @@ namespace FPSFramework.Player
             _nextThrowTime = Time.time + 0.8f;
             GrenadeCount--;
             OnGrenadeCountChanged?.Invoke(GrenadeCount);
+            OnAnyGrenadeThrown?.Invoke();
 
             Camera cam = _mainCamera != null ? _mainCamera : Camera.main;
             Vector3 spawnPos = cam.transform.position + cam.transform.forward * 0.5f + cam.transform.right * 0.15f;

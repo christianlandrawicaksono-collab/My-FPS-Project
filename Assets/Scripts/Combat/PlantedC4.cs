@@ -37,6 +37,7 @@ namespace FPSFramework.Combat
         public static event System.Action<PlantedC4, string> OnAnyC4Planted;
         public static event System.Action<PlantedC4> OnAnyC4Defused;
         public static event System.Action<PlantedC4> OnAnyC4Exploded;
+        public static event System.Action<PlantedC4> OnAnyDefuseStarted;
         public static event System.Action<float, float> OnAnyDefuseProgress; // current, required
 
         // Audio & Visual Helpers
@@ -219,6 +220,10 @@ namespace FPSFramework.Combat
 
             if (isNearby && isPressingE)
             {
+                if (!IsBeingDefused)
+                {
+                    OnAnyDefuseStarted?.Invoke(this);
+                }
                 IsBeingDefused = true;
                 CurrentDefuseProgress += Time.deltaTime;
 

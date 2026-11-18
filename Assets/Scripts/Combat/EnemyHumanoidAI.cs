@@ -60,6 +60,7 @@ namespace FPSFramework.Combat
         public bool IsDead => _currentState == EnemyAIState.Dead;
         public EnemyAIState State => _currentState;
         public bool IsFrozen { get; set; } = false;
+        public bool WasHeadshot { get; private set; } = false;
 
         // Internal State
         private EnemyAIState _currentState = EnemyAIState.Patrol;
@@ -661,6 +662,7 @@ namespace FPSFramework.Combat
 
         private void Die(bool wasHeadshot, Vector3 hitPoint, Vector3 hitDir)
         {
+            WasHeadshot = wasHeadshot;
             _currentState = EnemyAIState.Dead;
             CurrentHealth = 0f;
 
