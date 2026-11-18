@@ -13,7 +13,8 @@ namespace FPSFramework.UI
         InGame,
         Paused,
         Settings,
-        Controls
+        Controls,
+        MatchSetup
     }
 
     /// <summary>
@@ -98,6 +99,14 @@ namespace FPSFramework.UI
             "AMBER YELLOW",
             "CLEAN WHITE"
         };
+
+        // State Match Format & AI Difficulty
+        public int SelectedTargetWins { get; private set; } = 3;
+        public BotDifficulty SelectedBotDifficulty { get; private set; } = BotDifficulty.Tactical;
+
+        // Temporary match setup options
+        private int _tempTargetWins = 3;
+        private BotDifficulty _tempBotDifficulty = BotDifficulty.Tactical;
 
         // State Navigasi
         private MenuState _previousState = MenuState.MainMenu;
@@ -211,7 +220,7 @@ namespace FPSFramework.UI
                 {
                     ResumeMatch();
                 }
-                else if (CurrentState == MenuState.Settings || CurrentState == MenuState.Controls)
+                else if (CurrentState == MenuState.Settings || CurrentState == MenuState.Controls || CurrentState == MenuState.MatchSetup)
                 {
                     ReturnFromSubmenu();
                 }
@@ -308,6 +317,15 @@ namespace FPSFramework.UI
             PlaySound(_clickClip, 0.6f);
         }
 
+        public void OpenMatchSetup()
+        {
+            _previousState = CurrentState;
+            _tempTargetWins = SelectedTargetWins;
+            _tempBotDifficulty = SelectedBotDifficulty;
+            CurrentState = MenuState.MatchSetup;
+            PlaySound(_clickClip, 0.6f);
+        }
+
         public void OpenSettings()
         {
             _previousState = CurrentState;
@@ -398,6 +416,17 @@ namespace FPSFramework.UI
             SFXVolume = PlayerPrefs.GetFloat("Settings_SFXVol", 1.0f);
             CrosshairColorIndex = PlayerPrefs.GetInt("Settings_CrosshairColor", 0);
             CrosshairColorIndex = Mathf.Clamp(CrosshairColorIndex, 0, CrosshairPalette.Length - 1);
+
+            SelectedTargetWins = PlayerPrefs.GetInt("Match_TargetWins", 3);
+            if (SelectedTargetWins != 3 && SelectedTargetWins != 5 && SelectedTargetWins != 9)
+            {
+                SelectedTargetWins = 3;
+            }
+            SelectedBotDifficulty = (BotDifficulty)PlayerPrefs.GetInt("Match_BotDifficulty", 1);
+            if (!System.Enum.IsDefined(typeof(BotDifficulty), SelectedBotDifficulty))
+            {
+                SelectedBotDifficulty = BotDifficulty.Tactical;
+            }
         }
 
         public void SaveSettings()
@@ -463,6 +492,29 @@ namespace FPSFramework.UI
             {
                 hud.CrosshairColor = CrosshairPalette[CrosshairColorIndex];
             }
+
+            // 5. Format Pertandingan & Kesulitan Bot
+            if (TacticalRoundManager.Instance != null)
+            {
+                TacticalRoundManager.Instance.TargetRoundWins = SelectedTargetWins;
+                TacticalRoundManager.Instance.CurrentBotDifficulty = SelectedBotDifficulty;
+                TacticalRoundManager.Instance.ApplyBotDifficultyToAll();
+            }
+        }
+
+        public void DeployMatchWithSelectedConfig()
+        {
+            SelectedTargetWins = _tempTargetWins;
+            SelectedBotDifficulty = _tempBotDifficulty;
+
+            PlayerPrefs.SetInt("Match_TargetWins", SelectedTargetWins);
+            PlayerPrefs.SetInt("Match_BotDifficulty", (int)SelectedBotDifficulty);
+            PlayerPrefs.Save();
+
+            ApplySettingsToSystems();
+
+            PlaySound(_startChimeClip, 0.85f);
+            StartMatch();
         }
 
         #endregion
@@ -492,6 +544,9 @@ namespace FPSFramework.UI
                     break;
                 case MenuState.Controls:
                     DrawControlsModal();
+                    break;
+                case MenuState.MatchSetup:
+                    DrawMatchSetupModal();
                     break;
             }
         }
@@ -525,9 +580,21 @@ namespace FPSFramework.UI
 
             startY += 48f;
 
-            // Sub-teks Deskripsi Taktis
+            // Sub-teks Deskripsi Taktis & Format Aktif
+            string formatDesc = SelectedTargetWins switch
+            {
+                5 => "FIRST TO 5 WINS // STANDARD MATCH",
+                9 => "FIRST TO 9 WINS // CHAMPIONSHIP",
+                _ => "FIRST TO 3 WINS // SHORT MATCH"
+            };
+            string diffBadge = SelectedBotDifficulty switch
+            {
+                BotDifficulty.Recruit => "BOTS: RECRUIT",
+                BotDifficulty.Veteran => "BOTS: VETERAN (PRO)",
+                _ => "BOTS: TACTICAL"
+            };
             _subTitleStyle.normal.textColor = new Color(0.65f, 0.72f, 0.8f);
-            GUI.Label(new Rect(startX, startY, 460f, 24f), "FIRST TO 3 WINS // BOMB DEFUSAL ESPORTS", _subTitleStyle);
+            GUI.Label(new Rect(startX, startY, 460f, 24f), $"{formatDesc} // {diffBadge}", _subTitleStyle);
 
             startY += 65f;
 
@@ -536,9 +603,9 @@ namespace FPSFramework.UI
             float btnH = 58f;
             float spacing = 14f;
 
-            if (DrawTacticalButton(new Rect(startX, startY, btnW, btnH), "PLAY MATCH", "Enter competitive arena and start Round 1", true))
+            if (DrawTacticalButton(new Rect(startX, startY, btnW, btnH), "PLAY MATCH", "Configure format & deploy to competitive arena", true))
             {
-                StartMatch();
+                OpenMatchSetup();
             }
             startY += btnH + spacing;
 
@@ -794,9 +861,197 @@ namespace FPSFramework.UI
             }
         }
 
+        private void DrawMatchSetupModal()
+        {
+            // Dimmed screen backdrop
+            DrawSolidRect(new Rect(0, 0, Screen.width, Screen.height), new Color(0.02f, 0.03f, 0.05f, 0.82f));
+
+            float w = 680f;
+            float h = 460f;
+            float x = (Screen.width - w) * 0.5f;
+            float y = Mathf.Max(10f, (Screen.height - h) * 0.5f);
+
+            // Container Box
+            DrawSolidRect(new Rect(x, y, w, h), new Color(0.05f, 0.07f, 0.1f, 0.96f));
+            DrawBorder(new Rect(x, y, w, h), new Color(0.0f, 0.85f, 1.0f, 0.8f), 1.5f);
+            DrawSolidRect(new Rect(x, y, w, 4f), new Color(0.0f, 0.95f, 1.0f, 1f));
+
+            // Header Modal
+            _headerStyle.normal.textColor = Color.white;
+            _headerStyle.alignment = TextAnchor.MiddleCenter;
+            GUI.Label(new Rect(x, y + 14f, w, 26f), "OPERATION DEPLOYMENT // MATCH SETUP", _headerStyle);
+            _headerStyle.alignment = TextAnchor.MiddleLeft;
+
+            float contentX = x + 30f;
+            float contentW = w - 60f;
+            float curY = y + 46f;
+
+            // SECTION 1: MATCH FORMAT (TARGET ROUND WINS)
+            DrawCategoryHeader(contentX, curY, contentW, "1. TOURNAMENT FORMAT (TARGET ROUND WINS)");
+            curY += 28f;
+
+            float colGap = 10f;
+            float colW = (contentW - colGap * 2f) / 3f;
+            float optH = 50f;
+
+            // Option 1: FT3
+            bool isFT3 = _tempTargetWins == 3;
+            if (DrawSelectableCard(new Rect(contentX, curY, colW, optH), "SHORT MATCH", "FIRST TO 3 WINS", isFT3))
+            {
+                _tempTargetWins = 3;
+                PlaySound(_clickClip, 0.6f);
+            }
+
+            // Option 2: FT5
+            bool isFT5 = _tempTargetWins == 5;
+            if (DrawSelectableCard(new Rect(contentX + colW + colGap, curY, colW, optH), "STANDARD", "FIRST TO 5 WINS", isFT5))
+            {
+                _tempTargetWins = 5;
+                PlaySound(_clickClip, 0.6f);
+            }
+
+            // Option 3: FT9
+            bool isFT9 = _tempTargetWins == 9;
+            if (DrawSelectableCard(new Rect(contentX + (colW + colGap) * 2f, curY, colW, optH), "CHAMPIONSHIP", "FIRST TO 9 WINS", isFT9))
+            {
+                _tempTargetWins = 9;
+                PlaySound(_clickClip, 0.6f);
+            }
+            curY += optH + 8f;
+
+            // Description info box for format
+            string formatDesc = _tempTargetWins switch
+            {
+                5 => "ESTIMATED DURATION: 10 - 15 MINS // Standard competitive esports format with deep weapon economy management.",
+                9 => "ESTIMATED DURATION: 20 - 30 MINS // Marathon championship tournament. Endurance test of economy, retakes, and bomb plants.",
+                _ => "ESTIMATED DURATION: 5 - 8 MINS // Fast-paced combat. Ideal for quick warmups, reflexes, and aim practice."
+            };
+            DrawSolidRect(new Rect(contentX, curY, contentW, 24f), new Color(0.0f, 0.85f, 1.0f, 0.08f));
+            DrawBorder(new Rect(contentX, curY, contentW, 24f), new Color(0.0f, 0.85f, 1.0f, 0.25f), 1f);
+            _labelStyle.normal.textColor = new Color(0.0f, 0.85f, 1.0f, 0.9f);
+            _labelStyle.fontSize = 10;
+            _labelStyle.fontStyle = FontStyle.Normal;
+            GUI.Label(new Rect(contentX + 10f, curY + 3f, contentW - 20f, 18f), formatDesc, _labelStyle);
+            curY += 36f;
+
+            // SECTION 2: AI BOT DIFFICULTY
+            DrawCategoryHeader(contentX, curY, contentW, "2. ENEMY BOT AI DIFFICULTY");
+            curY += 28f;
+
+            // Option 1: Recruit
+            bool isRecruit = _tempBotDifficulty == BotDifficulty.Recruit;
+            if (DrawSelectableCard(new Rect(contentX, curY, colW, optH), "RECRUIT", "CASUAL TRAINING", isRecruit))
+            {
+                _tempBotDifficulty = BotDifficulty.Recruit;
+                PlaySound(_clickClip, 0.6f);
+            }
+
+            // Option 2: Tactical
+            bool isTactical = _tempBotDifficulty == BotDifficulty.Tactical;
+            if (DrawSelectableCard(new Rect(contentX + colW + colGap, curY, colW, optH), "TACTICAL", "ESPORTS STANDARD", isTactical))
+            {
+                _tempBotDifficulty = BotDifficulty.Tactical;
+                PlaySound(_clickClip, 0.6f);
+            }
+
+            // Option 3: Veteran
+            bool isVeteran = _tempBotDifficulty == BotDifficulty.Veteran;
+            if (DrawSelectableCard(new Rect(contentX + (colW + colGap) * 2f, curY, colW, optH), "VETERAN", "PRO & AGGRESSIVE", isVeteran))
+            {
+                _tempBotDifficulty = BotDifficulty.Veteran;
+                PlaySound(_clickClip, 0.6f);
+            }
+            curY += optH + 8f;
+
+            // Intel info box for difficulty
+            string diffIntel = _tempBotDifficulty switch
+            {
+                BotDifficulty.Recruit => "BOT INTEL: Reaction 0.48s | Burst: 2 Shots | Inaccuracy: Loose (0.08) | Damage: 10/Hit | Relaxed aim checking.",
+                BotDifficulty.Veteran => "BOT INTEL: Reaction 0.16s | Burst: 4 Shots | Inaccuracy: Laser (0.018) | Damage: 16/Hit | Headshot-lethal & ruthless.",
+                _ => "BOT INTEL: Reaction 0.35s | Burst: 3 Shots | Inaccuracy: Balanced (0.045) | Damage: 14/Hit | Official tournament balance."
+            };
+            Color diffBorderCol = _tempBotDifficulty switch
+            {
+                BotDifficulty.Recruit => new Color(0.2f, 0.85f, 0.4f, 0.35f),
+                BotDifficulty.Veteran => new Color(1.0f, 0.35f, 0.25f, 0.45f),
+                _ => new Color(0.0f, 0.85f, 1.0f, 0.25f)
+            };
+            Color diffBgCol = _tempBotDifficulty switch
+            {
+                BotDifficulty.Recruit => new Color(0.05f, 0.18f, 0.08f, 0.4f),
+                BotDifficulty.Veteran => new Color(0.20f, 0.05f, 0.05f, 0.4f),
+                _ => new Color(0.0f, 0.85f, 1.0f, 0.08f)
+            };
+            Color diffTextCol = _tempBotDifficulty switch
+            {
+                BotDifficulty.Recruit => new Color(0.4f, 0.95f, 0.5f, 0.95f),
+                BotDifficulty.Veteran => new Color(1.0f, 0.45f, 0.35f, 0.95f),
+                _ => new Color(0.0f, 0.85f, 1.0f, 0.9f)
+            };
+            DrawSolidRect(new Rect(contentX, curY, contentW, 24f), diffBgCol);
+            DrawBorder(new Rect(contentX, curY, contentW, 24f), diffBorderCol, 1f);
+            _labelStyle.normal.textColor = diffTextCol;
+            GUI.Label(new Rect(contentX + 10f, curY + 3f, contentW - 20f, 18f), diffIntel, _labelStyle);
+            curY += 44f;
+
+            // ACTION BUTTONS: [DEPLOY TO ARENA], [BACK TO TITLE]
+            float btnW = (contentW - 14f) * 0.5f;
+            float btnH = 44f;
+
+            if (DrawTacticalButton(new Rect(contentX, curY, btnW, btnH), "DEPLOY TO ARENA", "Enter combat with selected configuration", true))
+            {
+                DeployMatchWithSelectedConfig();
+            }
+
+            if (DrawTacticalButton(new Rect(contentX + btnW + 14f, curY, btnW, btnH), "BACK TO TITLE", "Return to main title screen", false))
+            {
+                ReturnFromSubmenu();
+            }
+        }
+
         #endregion
 
         #region UI Helper Widgets
+
+        private bool DrawSelectableCard(Rect rect, string title, string subtitle, bool isSelected)
+        {
+            Vector2 mousePos = Event.current.mousePosition;
+            bool isHovered = rect.Contains(mousePos);
+
+            Color bgCol = isSelected ?
+                new Color(0.0f, 0.40f, 0.50f, 0.90f) :
+                (isHovered ? new Color(0.12f, 0.16f, 0.22f, 0.92f) : new Color(0.06f, 0.08f, 0.12f, 0.80f));
+
+            Color borderCol = isSelected ?
+                new Color(0.0f, 0.95f, 1.0f, 1.0f) :
+                (isHovered ? new Color(0.0f, 0.85f, 1.0f, 0.7f) : new Color(0.25f, 0.35f, 0.45f, 0.5f));
+
+            DrawSolidRect(rect, bgCol);
+            DrawBorder(rect, borderCol, isSelected ? 2.0f : 1.0f);
+
+            if (isSelected)
+            {
+                DrawSolidRect(new Rect(rect.x, rect.y, 4f, rect.height), new Color(0.0f, 0.95f, 1.0f));
+            }
+
+            _buttonStyle.normal.textColor = isSelected ? Color.white : (isHovered ? Color.white : new Color(0.8f, 0.85f, 0.9f));
+            _buttonStyle.fontSize = 12;
+            _buttonStyle.fontStyle = FontStyle.Bold;
+            GUI.Label(new Rect(rect.x + 12f, rect.y + 6f, rect.width - 20f, 18f), title, _buttonStyle);
+
+            _labelStyle.normal.textColor = isSelected ? new Color(0.8f, 0.95f, 1.0f) : new Color(0.5f, 0.58f, 0.68f);
+            _labelStyle.fontSize = 9;
+            _labelStyle.fontStyle = FontStyle.Normal;
+            GUI.Label(new Rect(rect.x + 12f, rect.y + 26f, rect.width - 20f, 16f), subtitle, _labelStyle);
+
+            if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && isHovered)
+            {
+                Event.current.Use();
+                return true;
+            }
+
+            return false;
+        }
 
         private bool DrawTacticalButton(Rect rect, string text, string subtext, bool isPrimary)
         {

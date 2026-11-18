@@ -626,6 +626,39 @@ namespace FPSFramework.Combat
             }
         }
 
+        /// <summary>
+        /// Mengalibrasi parameter respon, akurasi, dan agresivitas tembakan bot sesuai tingkat kesulitan.
+        /// </summary>
+        public void SetDifficulty(BotDifficulty diff)
+        {
+            switch (diff)
+            {
+                case BotDifficulty.Recruit:
+                    reactionDelay = 0.48f;
+                    burstShotCount = 2;
+                    burstCooldown = 1.8f;
+                    baseInaccuracy = 0.080f;
+                    damagePerShot = 10f;
+                    break;
+
+                case BotDifficulty.Tactical:
+                    reactionDelay = 0.35f;
+                    burstShotCount = 3;
+                    burstCooldown = 1.3f;
+                    baseInaccuracy = 0.045f;
+                    damagePerShot = 14f;
+                    break;
+
+                case BotDifficulty.Veteran:
+                    reactionDelay = 0.16f;
+                    burstShotCount = 4;
+                    burstCooldown = 0.9f;
+                    baseInaccuracy = 0.018f;
+                    damagePerShot = 16f;
+                    break;
+            }
+        }
+
         private void Die(bool wasHeadshot, Vector3 hitPoint, Vector3 hitDir)
         {
             _currentState = EnemyAIState.Dead;

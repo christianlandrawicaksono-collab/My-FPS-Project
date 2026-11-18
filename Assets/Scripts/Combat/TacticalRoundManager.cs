@@ -14,6 +14,13 @@ namespace FPSFramework.Combat
         MatchOver
     }
 
+    public enum BotDifficulty
+    {
+        Recruit,
+        Tactical,
+        Veteran
+    }
+
     /// <summary>
     /// Esports Round Management System (First to 3 Wins - CS2 / Valorant Style):
     /// - Format Pertandingan: Tim pertama yang mengumpulkan 3 kemenangan memenangkan pertandingan.
@@ -30,6 +37,14 @@ namespace FPSFramework.Combat
         [SerializeField] private float freezeTimeDuration = 4.0f; // detik
         [SerializeField] private float roundActiveDuration = 105.0f; // 1 menit 45 detik
         [SerializeField] private float roundEndDuration = 3.5f; // detik
+
+        public int TargetRoundWins
+        {
+            get => targetRoundWins;
+            set => targetRoundWins = Mathf.Max(1, value);
+        }
+
+        public BotDifficulty CurrentBotDifficulty { get; set; } = BotDifficulty.Tactical;
 
         [Header("Titik Spawn Pemain & Bot")]
         [SerializeField] private Vector3 playerSpawnPos = new Vector3(0f, 1.0f, 66f);
@@ -149,6 +164,7 @@ namespace FPSFramework.Combat
                     _activeBots.Add(b);
                 }
             }
+            ApplyBotDifficultyToAll();
         }
 
         private IEnumerator MatchFlowRoutine()
@@ -441,12 +457,27 @@ namespace FPSFramework.Combat
             // 2. Bersihkan bekas lubang peluru di arena
             FPSWeapon.ClearAllBulletHoles();
 
-            // 3. Kunci kedua bot baru selama fase FreezeTime
+            // 3. Kunci kedua bot baru selama fase FreezeTime dan terapkan tingkat kesulitan
             foreach (var bot in _activeBots)
             {
                 if (bot != null)
                 {
                     bot.IsFrozen = true;
+                }
+            }
+            ApplyBotDifficultyToAll();
+        }
+
+        /// <summary>
+        /// Mengalibrasi parameter kecerdasan dan respon seluruh bot musuh di arena sesuai kesulitan yang dipilih.
+        /// </summary>
+        public void ApplyBotDifficultyToAll()
+        {
+            foreach (var bot in _activeBots)
+            {
+                if (bot != null)
+                {
+                    bot.SetDifficulty(CurrentBotDifficulty);
                 }
             }
         }

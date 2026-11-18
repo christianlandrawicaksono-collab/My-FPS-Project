@@ -1341,7 +1341,11 @@ namespace FPSFramework.Player
             TacticalRoundManager rm = TacticalRoundManager.Instance;
             if (rm == null) return;
 
-            float panelWidth = 370f;
+            int targetWins = Mathf.Max(1, rm.TargetRoundWins);
+            float pipWidthTotal = targetWins * 11f;
+
+            // Lebar panel dinamis beradaptasi simetris sesuai jumlah ronde kemenangan (FT3 / FT5 / FT9)
+            float panelWidth = Mathf.Max(380f, 332f + targetWins * 22f);
             float panelHeight = 46f;
             float panelX = (Screen.width - panelWidth) * 0.5f;
             float panelY = 16f;
@@ -1362,10 +1366,10 @@ namespace FPSFramework.Player
             _scoreboardScoreStyle.normal.textColor = Color.white;
             GUI.Label(new Rect(leftSectionX + 66f, panelY + 8f, 24f, 26f), rm.PlayerScore.ToString(), _scoreboardScoreStyle);
 
-            // 3 Kotak Pip Kemenangan Player
+            // Kotak Pip Kemenangan Player Sesuai Target Match
             float pipX = leftSectionX + 96f;
             float pipY = panelY + 18f;
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < targetWins; i++)
             {
                 Rect pipRect = new Rect(pipX + i * 11f, pipY, 8f, 10f);
                 if (i < rm.PlayerScore)
@@ -1380,8 +1384,8 @@ namespace FPSFramework.Player
             }
 
             // BAGIAN TENGAH: TIMER & RONDE
-            float centerSectionX = panelX + 138f;
-            float centerSectionW = 94f;
+            float centerSectionW = 96f;
+            float centerSectionX = panelX + (panelWidth - centerSectionW) * 0.5f;
 
             // Format Timer: MM:SS
             float timeSec = Mathf.Max(0f, rm.RemainingTime);
@@ -1419,9 +1423,9 @@ namespace FPSFramework.Player
             // SISI KANAN: ATTACKERS / BOTS T TEAM
             float rightSectionX = panelX + panelWidth - 10f;
 
-            // 3 Kotak Pip Kemenangan Attackers
-            float rPipX = rightSectionX - 128f;
-            for (int i = 0; i < 3; i++)
+            // Kotak Pip Kemenangan Attackers Sesuai Target Match
+            float rPipX = rightSectionX - 98f - pipWidthTotal;
+            for (int i = 0; i < targetWins; i++)
             {
                 Rect pipRect = new Rect(rPipX + i * 11f, pipY, 8f, 10f);
                 if (i < rm.BotScore)
@@ -1497,7 +1501,7 @@ namespace FPSFramework.Player
                 float bannerX = (Screen.width - bannerW) * 0.5f;
                 float bannerY = Screen.height * 0.35f;
 
-                bool playerWonMatch = rm.PlayerScore >= 3;
+                bool playerWonMatch = rm.PlayerScore >= rm.TargetRoundWins;
                 Color boxColor = playerWonMatch ? new Color(0.02f, 0.12f, 0.10f, 0.95f) : new Color(0.16f, 0.04f, 0.04f, 0.95f);
                 Color borderColor = playerWonMatch ? new Color(0.0f, 0.95f, 1.0f, 0.9f) : new Color(1.0f, 0.25f, 0.25f, 0.9f);
                 Color titleColor = playerWonMatch ? new Color(0.0f, 0.95f, 1.0f, 1.0f) : new Color(1.0f, 0.3f, 0.3f, 1.0f);
