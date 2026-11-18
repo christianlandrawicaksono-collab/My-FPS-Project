@@ -97,6 +97,7 @@ namespace FPSFramework.Player
         public bool IsCombatActionBlocked()
         {
             if (WeaponsLocked) return true;
+            if (FPSFramework.UI.FPSMenuManager.Instance != null && !FPSFramework.UI.FPSMenuManager.Instance.IsCombatAllowed) return true;
             if (FPSEconomyManager.Instance != null && FPSEconomyManager.Instance.IsBuyMenuOpen) return true;
             if (TacticalRoundManager.Instance != null && TacticalRoundManager.Instance.State == RoundState.FreezeTime) return true;
             return false;

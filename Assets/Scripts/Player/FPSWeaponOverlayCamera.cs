@@ -181,5 +181,20 @@ namespace FPSFramework.Player
                 _overlayCamera.fieldOfView = fov;
             }
         }
+
+        /// <summary>
+        /// Menyelaraskan FOV kamera utama dan overlay viewmodel saat diubah dari menu pengaturan.
+        /// </summary>
+        public void SyncCameraFOV(float fov)
+        {
+            if (_baseCamera != null)
+            {
+                _baseCamera.fieldOfView = fov;
+            }
+            if (_overlayCamera != null && matchMainCameraFOV)
+            {
+                _overlayCamera.fieldOfView = fov;
+            }
+        }
     }
 }

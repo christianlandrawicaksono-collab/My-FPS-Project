@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using FPSFramework.Player;
+using FPSFramework.UI;
 
 namespace FPSFramework.Combat
 {
@@ -114,6 +115,12 @@ namespace FPSFramework.Combat
         private void HandleInput()
         {
             if (Keyboard.current == null) return;
+
+            if (FPSMenuManager.Instance != null && !FPSMenuManager.Instance.IsCombatAllowed)
+            {
+                if (IsBuyMenuOpen) CloseBuyMenu();
+                return;
+            }
 
             // Tombol 'B' untuk toggle Buy Menu
             if (Keyboard.current.bKey.wasPressedThisFrame)

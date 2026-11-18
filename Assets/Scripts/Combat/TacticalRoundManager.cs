@@ -153,6 +153,12 @@ namespace FPSFramework.Combat
 
         private IEnumerator MatchFlowRoutine()
         {
+            // Tunggu pemain menekan tombol [PLAY MATCH] di Menu Utama jika FPSMenuManager terpasang
+            while (FPSFramework.UI.FPSMenuManager.Instance != null && !FPSFramework.UI.FPSMenuManager.Instance.IsMatchStarted)
+            {
+                yield return null;
+            }
+
             while (PlayerScore < targetRoundWins && BotScore < targetRoundWins)
             {
                 // Reset status bom dan bersihkan arena secara instan di awal FreezeTime
@@ -298,6 +304,7 @@ namespace FPSFramework.Combat
         public void RestartMatch()
         {
             StopAllCoroutines();
+            PlantedC4.ClearAllPlantedC4();
             PlayerScore = 0;
             BotScore = 0;
             CurrentRound = 1;

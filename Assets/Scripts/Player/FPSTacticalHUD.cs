@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using FPSFramework.Combat;
+using FPSFramework.UI;
 
 namespace FPSFramework.Player
 {
@@ -34,6 +35,12 @@ namespace FPSFramework.Player
         [SerializeField] private bool followRecoil = true;
         [SerializeField] private float followRecoilSnappiness = 32f;
         [SerializeField] private Color crosshairColor = Color.cyan;
+
+        public Color CrosshairColor
+        {
+            get => crosshairColor;
+            set => crosshairColor = value;
+        }
 
         [Header("Tactical Elimination Banner")]
         [Tooltip("Tampilkan banner eliminasi saat target tewas.")]
@@ -172,6 +179,18 @@ namespace FPSFramework.Player
             {
                 GameObject ecoMgr = new GameObject("FPSEconomyManager");
                 ecoMgr.AddComponent<FPSEconomyManager>();
+            }
+
+            // Pastikan FPSMenuManager aktif di scene
+            if (FindAnyObjectByType<FPSMenuManager>() == null)
+            {
+                GameObject menuMgr = new GameObject("FPSMenuManager");
+                menuMgr.AddComponent<FPSMenuManager>();
+            }
+
+            if (FPSMenuManager.Instance != null && FPSMenuManager.Instance.CrosshairColorIndex >= 0 && FPSMenuManager.Instance.CrosshairColorIndex < FPSMenuManager.CrosshairPalette.Length)
+            {
+                crosshairColor = FPSMenuManager.CrosshairPalette[FPSMenuManager.Instance.CrosshairColorIndex];
             }
         }
 
@@ -389,6 +408,12 @@ namespace FPSFramework.Player
 
         private void OnGUI()
         {
+            // Sembunyikan seluruh HUD in-game jika berada di Main Menu awal
+            if (FPSFramework.UI.FPSMenuManager.Instance != null && FPSFramework.UI.FPSMenuManager.Instance.IsMainMenuActive)
+            {
+                return;
+            }
+
             InitStyles();
 
             // 0. Red Screen Damage Vignette Flash saat tertembak

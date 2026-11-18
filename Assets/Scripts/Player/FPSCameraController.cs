@@ -12,6 +12,8 @@ namespace FPSFramework.Player
     /// </summary>
     public class FPSCameraController : MonoBehaviour
     {
+        public static FPSCameraController Instance { get; private set; }
+
         [Header("Referensi Objek")]
         [Tooltip("Transform dari root badan player (Capsule) yang akan berotasi secara horizontal (Yaw).")]
         [SerializeField] private Transform playerBody;
@@ -31,6 +33,22 @@ namespace FPSFramework.Player
 
         [Tooltip("Balikkan sumbu Y (vertikal).")]
         [SerializeField] private bool invertY = false;
+
+        public float MouseSensitivity
+        {
+            get => mouseSensitivityX;
+            set
+            {
+                mouseSensitivityX = value;
+                mouseSensitivityY = value;
+            }
+        }
+
+        public bool InvertY
+        {
+            get => invertY;
+            set => invertY = value;
+        }
 
         [Header("Batas Sudut Vertikal (Pitch Clamp)")]
         [SerializeField] private float minPitchAngle = -75f;
@@ -81,6 +99,8 @@ namespace FPSFramework.Player
 
         private void Awake()
         {
+            Instance = this;
+
             if (playerBody == null && transform.parent != null)
             {
                 playerBody = transform.root;
@@ -121,6 +141,12 @@ namespace FPSFramework.Player
 
         private void Start()
         {
+            if (FPSFramework.UI.FPSMenuManager.Instance != null && FPSFramework.UI.FPSMenuManager.Instance.IsMainMenuActive)
+            {
+                SetCursorLocked(false);
+                return;
+            }
+
             if (lockCursorOnStart)
             {
                 SetCursorLocked(true);
@@ -223,10 +249,26 @@ namespace FPSFramework.Player
         }
 
         /// <summary>
-        /// Tekan ESC untuk unlock mouse (memudahkan inspect di editor), klik mouse untuk lock kembali.
+        /// Penguncian kursor: diserahkan ke FPSMenuManager dan FPSEconomyManager jika aktif.
         /// </summary>
         private void HandleCursorToggle()
         {
+            if (FPSFramework.UI.FPSMenuManager.Instance != null)
+            {
+                if (FPSFramework.UI.FPSMenuManager.Instance.CurrentState == FPSFramework.UI.MenuState.InGame)
+                {
+                    if (FPSFramework.Combat.FPSEconomyManager.Instance != null && FPSFramework.Combat.FPSEconomyManager.Instance.IsBuyMenuOpen) return;
+
+                    if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
+                    {
+                        SetCursorLocked(true);
+                    }
+                }
+                return;
+            }
+
+            if (FPSFramework.Combat.FPSEconomyManager.Instance != null && FPSFramework.Combat.FPSEconomyManager.Instance.IsBuyMenuOpen) return;
+
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
                 SetCursorLocked(Cursor.lockState != CursorLockMode.Locked);
