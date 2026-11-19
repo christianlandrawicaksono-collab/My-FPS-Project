@@ -1045,6 +1045,14 @@ namespace FPSFramework.Combat
             return foundFloor ? highestFloorY : 0f;
         }
 
+        public void SetPatrolWaypoints(List<Vector3> waypoints)
+        {
+            if (waypoints == null || waypoints.Count == 0) return;
+            _patrolWaypoints.Clear();
+            _patrolWaypoints.AddRange(waypoints);
+            _currentWaypointIndex = 0;
+        }
+
         private void SetupTacticalWaypoints()
         {
             // Titik patroli strategis aman di koridor dan gedung terbuka
