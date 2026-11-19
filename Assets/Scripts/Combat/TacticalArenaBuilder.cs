@@ -478,11 +478,22 @@ namespace FPSFramework.Combat
                 bool changed = false;
                 for (int i = 0; i < mats.Length; i++)
                 {
-                    if (mats[i] != null && mats[i].shader != null && (mats[i].shader.name == "Standard" || mats[i].shader.name.Contains("Error")))
+                    if (mats[i] != null && mats[i].shader != null && (!mats[i].shader.name.StartsWith("Universal Render Pipeline") || mats[i].shader.name.Contains("Error")))
                     {
                         Material newMat = new Material(_cachedUrpShader);
-                        if (mats[i].HasProperty("_MainTex")) newMat.SetTexture("_BaseMap", mats[i].GetTexture("_MainTex"));
-                        if (mats[i].HasProperty("_Color")) newMat.SetColor("_BaseColor", mats[i].GetColor("_Color"));
+                        if (mats[i].HasProperty("_BaseMap") && mats[i].GetTexture("_BaseMap") != null)
+                            newMat.SetTexture("_BaseMap", mats[i].GetTexture("_BaseMap"));
+                        else if (mats[i].HasProperty("_MainTex") && mats[i].GetTexture("_MainTex") != null)
+                            newMat.SetTexture("_BaseMap", mats[i].GetTexture("_MainTex"));
+
+                        if (mats[i].HasProperty("_BumpMap") && mats[i].GetTexture("_BumpMap") != null)
+                            newMat.SetTexture("_BumpMap", mats[i].GetTexture("_BumpMap"));
+
+                        if (mats[i].HasProperty("_BaseColor"))
+                            newMat.SetColor("_BaseColor", mats[i].GetColor("_BaseColor"));
+                        else if (mats[i].HasProperty("_Color"))
+                            newMat.SetColor("_BaseColor", mats[i].GetColor("_Color"));
+
                         mats[i] = newMat;
                         changed = true;
                     }
