@@ -570,7 +570,7 @@ namespace FPSFramework.Player
             Vector3 startPos = muzzleTransform != null ? muzzleTransform.position : transform.position + transform.forward * 0.3f;
             Vector3 targetPoint = centerRay.origin + (shootDirection * range);
 
-            if (Physics.Raycast(centerRay.origin, shootDirection, out RaycastHit hit, range, _hitLayers))
+            if (Physics.Raycast(centerRay.origin, shootDirection, out RaycastHit hit, range, _hitLayers, QueryTriggerInteraction.Ignore))
             {
                 targetPoint = hit.point;
 
@@ -738,6 +738,12 @@ namespace FPSFramework.Player
 
         private void SpawnBulletHole(RaycastHit hit)
         {
+            if (hit.collider == null || hit.collider.isTrigger) return;
+
+            // Jangan tempelkan lubang peluru pada collider tanpa mesh aktif atau collider hantu
+            Renderer colRend = hit.collider.GetComponent<Renderer>() ?? hit.collider.GetComponentInParent<Renderer>();
+            if (colRend != null && !colRend.enabled) return;
+
             if (_bulletHoleMaterial == null)
             {
                 _bulletHoleMaterial = CreateBulletHoleMaterial();
@@ -747,7 +753,7 @@ namespace FPSFramework.Player
             hole.name = "BulletHole";
             Destroy(hole.GetComponent<Collider>());
 
-            hole.transform.position = hit.point + (hit.normal * 0.0015f);
+            hole.transform.position = hit.point + (hit.normal * 0.0025f);
             hole.transform.rotation = Quaternion.LookRotation(-hit.normal) * Quaternion.Euler(0f, 0f, Random.Range(0f, 360f));
             hole.transform.localScale = Vector3.one * Random.Range(0.045f, 0.065f);
             hole.transform.SetParent(hit.collider.transform);

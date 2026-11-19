@@ -19,7 +19,7 @@ namespace FPSFramework.Combat
     [ExecuteAlways]
     public class TacticalArenaBuilder : MonoBehaviour
     {
-        public const string ArenaRootName = "Tactical_3Lane_Map";
+        public const string ArenaRootName = "Inferno_Stylized_Arena";
 
         [Header("Pengaturan Palet Warna Tuscan/Inferno")]
         [SerializeField] private Color wallStuccoColor = new Color(0.84f, 0.78f, 0.66f);     // Warm Italian Stucco / Plaster
@@ -57,7 +57,7 @@ namespace FPSFramework.Combat
             };
         }
 
-        [UnityEditor.MenuItem("Tools/Build 3-Lane Tactical Map & Bot")]
+        [UnityEditor.MenuItem("Tools/Rebuild Inferno Arena & Clean Old Maps")]
         public static void MenuBuildTacticalMap()
         {
             ForceRebuildArena();
@@ -70,10 +70,38 @@ namespace FPSFramework.Combat
             EnsureMapAndBotInScene();
         }
 
+        public static void CleanupOldMapRoots()
+        {
+            string[] oldRoots = { "Tactical_3Lane_Map", "Tactical_Arena" };
+            bool anyRemoved = false;
+            foreach (var rootName in oldRoots)
+            {
+                if (rootName == ArenaRootName) continue;
+                GameObject root = GameObject.Find(rootName);
+                if (root != null)
+                {
+                    Debug.Log($"[TacticalArenaBuilder] Menghapus root map usang: {rootName}");
+                    if (Application.isPlaying) Destroy(root);
+                    else DestroyImmediate(root);
+                    anyRemoved = true;
+                }
+            }
+
+#if UNITY_EDITOR
+            if (anyRemoved && !Application.isPlaying)
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            }
+#endif
+        }
+
         public static void EnsureMapAndBotInScene()
         {
             Scene activeScene = SceneManager.GetActiveScene();
             if (activeScene.name != "Training") return;
+
+            // Bersihkan sisa map lama (seperti Tactical_3Lane_Map dengan 153 collider)
+            CleanupOldMapRoots();
 
             GameObject existingMap = GameObject.Find(ArenaRootName);
             if (existingMap == null || existingMap.transform.Find("Inferno_Fountain_SiteB") == null || existingMap.transform.Find("PlantZone_A_FloorPlate") == null)
@@ -95,6 +123,8 @@ namespace FPSFramework.Combat
 
         public static void ForceRebuildArena()
         {
+            CleanupOldMapRoots();
+
             GameObject existingMap = GameObject.Find(ArenaRootName);
             if (existingMap != null)
             {
@@ -130,6 +160,9 @@ namespace FPSFramework.Combat
             GameObject builderObj = new GameObject("TacticalMap_AutoBuilder");
             TacticalArenaBuilder builder = builderObj.AddComponent<TacticalArenaBuilder>();
             builder.BuildArena();
+
+            if (Application.isPlaying) Destroy(builderObj);
+            else DestroyImmediate(builderObj);
 
 #if UNITY_EDITOR
             if (!Application.isPlaying)
@@ -212,10 +245,14 @@ namespace FPSFramework.Combat
             SpawnPrefab(mapRoot.transform, "TSpawn_FlowerPot_1", "Assets/Models/Environment/Village/Prefabs/Flower Pot.prefab", new Vector3(-8f, 0f, 2f), Quaternion.identity, Vector3.one * 1.4f);
             SpawnPrefab(mapRoot.transform, "TSpawn_FlowerPot_2", "Assets/Models/Environment/Village/Prefabs/Flower Pot.prefab", new Vector3(8f, 0f, 2f), Quaternion.identity, Vector3.one * 1.4f);
 
-            // Barikade staging peti kayu di T-Spawn
+            // Barikade staging peti kayu & logistik di T-Spawn
             SpawnWoodCrate(mapRoot.transform, "TSpawn_Crate_1", "Crate_01", new Vector3(-3.5f, 0.6f, -1.5f), Vector3.one * 1.2f, _woodBrightMat);
             SpawnWoodCrate(mapRoot.transform, "TSpawn_Crate_2", "Crate_04", new Vector3(3.5f, 0.6f, -1.5f), Vector3.one * 1.2f, _woodDarkMat);
             SpawnWoodCrate(mapRoot.transform, "TSpawn_Crate_Stack", "Crate_08", new Vector3(0f, 0.6f, 2.5f), Vector3.one * 1.3f, _woodBrightMat);
+            CreateBarrelCluster(mapRoot.transform, "TSpawn_Barrels_W", new Vector3(-12f, 0f, 0f), barrelDarkMat, barrelRedMat);
+            SpawnPrefab(mapRoot.transform, "TSpawn_TrashBags_W", "Assets/Models/Environment/Town/Prefabs/Prop_TrashBag_01.prefab", new Vector3(-11f, 0f, 1.5f), Quaternion.identity, Vector3.one * 1.3f);
+            CreateBarrelCluster(mapRoot.transform, "TSpawn_Barrels_E", new Vector3(12f, 0f, 0f), barrelDarkMat, barrelRedMat);
+            SpawnWoodCrate(mapRoot.transform, "TSpawn_Supply_E", "Crate_03", new Vector3(11f, 0.6f, 1.5f), Vector3.one * 1.2f, _woodBrightMat);
 
             // Gapura lengkung batu di gerbang keluar T-Spawn
             CreateBlock(mapRoot.transform, "TSpawn_Gate_Banana", new Vector3(-19f, 4.5f, 10f), new Vector3(6f, 1.0f, 1.2f), stoneMat);
@@ -226,20 +263,32 @@ namespace FPSFramework.Combat
             // 2. JALUR KIRI: BANANA (B CHOKEPOINT: Z = 12 s/d 38)
             // ==========================================
             // Pagar kayu desa (Fence) di sepanjang dinding luar Banana
-            SpawnPrefab(mapRoot.transform, "Banana_Fence_1", "Assets/Models/Environment/Village/Prefabs/Fence.prefab", new Vector3(-28.5f, 0f, 16f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.2f);
-            SpawnPrefab(mapRoot.transform, "Banana_Fence_2", "Assets/Models/Environment/Village/Prefabs/Fence.prefab", new Vector3(-28.5f, 0f, 22f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.2f);
-            SpawnPrefab(mapRoot.transform, "Banana_Fence_3", "Assets/Models/Environment/Village/Prefabs/Fence.prefab", new Vector3(-28.5f, 0f, 28f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.2f);
+            SpawnPrefab(mapRoot.transform, "Banana_Fence_1", "Assets/Models/Environment/Village/Prefabs/Fence.prefab", new Vector3(-28.5f, 0f, 14f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.2f);
+            SpawnPrefab(mapRoot.transform, "Banana_Fence_2", "Assets/Models/Environment/Village/Prefabs/Fence.prefab", new Vector3(-28.5f, 0f, 20f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.2f);
+            SpawnPrefab(mapRoot.transform, "Banana_Fence_3", "Assets/Models/Environment/Village/Prefabs/Fence.prefab", new Vector3(-28.5f, 0f, 26f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.2f);
+            SpawnPrefab(mapRoot.transform, "Banana_Fence_4", "Assets/Models/Environment/Village/Prefabs/Fence.prefab", new Vector3(-28.5f, 0f, 32f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.2f);
 
-            // Barikade 'Half-Wall' dan 'Car' khas Banana menggunakan susunan peti kayu
+            // Barikade 'Half-Wall' khas Banana menggunakan balok batu dan peti
             CreateBlock(mapRoot.transform, "Banana_HalfWall_Base", new Vector3(-21f, 0.6f, 27f), new Vector3(4.5f, 1.2f, 0.8f), stoneMat);
-            SpawnWoodCrate(mapRoot.transform, "Banana_Car_Crate_1", "Crate_01", new Vector3(-16f, 0.6f, 23f), Vector3.one * 1.4f, _woodBrightMat);
-            SpawnWoodCrate(mapRoot.transform, "Banana_Car_Crate_2", "Crate_05", new Vector3(-16f, 1.7f, 23f), Vector3.one * 1.1f, _woodDarkMat);
-            SpawnWoodCrate(mapRoot.transform, "Banana_Car_Crate_3", "Crate_03", new Vector3(-17.5f, 0.6f, 23.5f), Vector3.one * 1.2f, _woodBrightMat);
+            SpawnWoodCrate(mapRoot.transform, "Banana_HalfWall_Crate", "Crate_07", new Vector3(-22.5f, 0.6f, 28.5f), Vector3.one * 1.2f, _woodDarkMat);
+
+            // Barikade 'Car' khas Banana dengan susunan peti kayu bertingkat, drum, dan karung suplai
+            CreateBlock(mapRoot.transform, "Banana_Car_Base", new Vector3(-17f, 0.4f, 23f), new Vector3(2.2f, 0.8f, 4.0f), ironMat);
+            SpawnWoodCrate(mapRoot.transform, "Banana_Car_Crate_1", "Crate_01", new Vector3(-16.2f, 0.6f, 22.0f), Vector3.one * 1.35f, _woodBrightMat);
+            SpawnWoodCrate(mapRoot.transform, "Banana_Car_Crate_2", "Crate_05", new Vector3(-16.2f, 1.7f, 22.0f), Vector3.one * 1.15f, _woodDarkMat);
+            SpawnWoodCrate(mapRoot.transform, "Banana_Car_Crate_3", "Crate_03", new Vector3(-17.8f, 0.6f, 23.5f), Vector3.one * 1.25f, _woodBrightMat);
+            SpawnWoodCrate(mapRoot.transform, "Banana_Car_Crate_4", "Crate_02", new Vector3(-16.5f, 0.6f, 24.5f), Vector3.one * 1.2f, _woodDarkMat);
+            SpawnPrefab(mapRoot.transform, "Banana_Car_Barrel_1", "Assets/Models/Environment/Town/Prefabs/Prop_OilBerrel_01.prefab", new Vector3(-15.6f, 0f, 20.8f), Quaternion.identity, Vector3.one * 1.2f);
+            SpawnPrefab(mapRoot.transform, "Banana_Car_Trash_1", "Assets/Models/Environment/Town/Prefabs/Prop_TrashBag_01.prefab", new Vector3(-18.0f, 0f, 21.5f), Quaternion.identity, Vector3.one * 1.3f);
             CreateBarrelCluster(mapRoot.transform, "Banana_Barrels_Sandbag", new Vector3(-25f, 0f, 20f), barrelDarkMat, barrelRedMat);
 
-            // Lentera jalan di belokan Banana
+            // Vegetasi dan lentera penerang jalan di Banana
+            SpawnPrefab(mapRoot.transform, "Banana_Lantern_Entry", "Assets/Models/Environment/Village/Prefabs/Lantern.prefab", new Vector3(-24f, 0f, 13f), Quaternion.identity, Vector3.one * 1.2f);
             SpawnPrefab(mapRoot.transform, "Banana_Lantern_Choke", "Assets/Models/Environment/Village/Prefabs/Lantern.prefab", new Vector3(-14f, 0f, 32f), Quaternion.identity, Vector3.one * 1.2f);
-            SpawnPrefab(mapRoot.transform, "Banana_PineTree", "Assets/Models/Environment/Village/Prefabs/Pine Tree_2.prefab", new Vector3(-28f, 0f, 35f), Quaternion.identity, Vector3.one * 1.3f);
+            SpawnPrefab(mapRoot.transform, "Banana_PineTree_1", "Assets/Models/Environment/Village/Prefabs/Pine Tree_3.prefab", new Vector3(-28f, 0f, 18f), Quaternion.identity, Vector3.one * 1.25f);
+            SpawnPrefab(mapRoot.transform, "Banana_PineTree_2", "Assets/Models/Environment/Village/Prefabs/Pine Tree_2.prefab", new Vector3(-28f, 0f, 35f), Quaternion.identity, Vector3.one * 1.3f);
+            SpawnPrefab(mapRoot.transform, "Banana_Bush_1", "Assets/Models/Environment/Town/Prefabs/Prop_Bush_01.prefab", new Vector3(-27.5f, 0f, 23f), Quaternion.identity, Vector3.one * 1.3f);
+            SpawnPrefab(mapRoot.transform, "Banana_Bush_2", "Assets/Models/Environment/Town/Prefabs/Prop_Bush_02.prefab", new Vector3(-27.5f, 0f, 30f), Quaternion.identity, Vector3.one * 1.3f);
 
             // ==========================================
             // 3. BOMBSITE B: THE FOUNTAIN RUINS (Z = 38 s/d 64, X = -28 s/d -12)
@@ -282,41 +331,134 @@ namespace FPSFramework.Combat
             // ==========================================
             // 4. JALUR TENGAH: MID LANE & ALT-MID (Z = 12 s/d 48, X = -8 s/d 10)
             // ==========================================
-            // Gedung tinggi bertingkat (Town Pack) memagari Mid Lane
-            SpawnPrefab(mapRoot.transform, "Mid_Townhouse_1", "Assets/Models/Environment/Town/Prefabs/Env_ResidentBuilding_01.prefab", new Vector3(-4f, 0f, 38f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.15f, brickMat);
-            SpawnPrefab(mapRoot.transform, "Mid_Commercial_1", "Assets/Models/Environment/Town/Prefabs/Env_CommercialBuilding_01.prefab", new Vector3(6f, 0f, 24f), Quaternion.identity, Vector3.one * 1.15f, stuccoMat);
+            // Gedung-gedung bertingkat (Town Pack) memagari lorong Mid Lane
+            SpawnPrefab(mapRoot.transform, "Mid_Resident_2", "Assets/Models/Environment/Town/Prefabs/Env_ResidentBuilding_02.prefab", new Vector3(-5.5f, 0f, 18f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.1f, stuccoMat);
+            SpawnPrefab(mapRoot.transform, "Mid_Commercial_1", "Assets/Models/Environment/Town/Prefabs/Env_CommercialBuilding_01.prefab", new Vector3(6f, 0f, 22f), Quaternion.identity, Vector3.one * 1.15f, stuccoMat);
+            SpawnPrefab(mapRoot.transform, "Mid_Townhouse_1", "Assets/Models/Environment/Town/Prefabs/Env_ResidentBuilding_01.prefab", new Vector3(-4.5f, 0f, 38f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.15f, brickMat);
 
-            // Monumen taman batu tengah Mid & Benches
-            CreateBlock(mapRoot.transform, "Mid_Plaza_Planter", new Vector3(0f, 0.4f, 28f), new Vector3(4.0f, 0.8f, 3.0f), stoneMat);
-            SpawnPrefab(mapRoot.transform, "Mid_Vase_Monument", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Vase.prefab", new Vector3(0f, 0.8f, 28f), Quaternion.identity, Vector3.one * 1.4f, stoneMat);
-            SpawnPrefab(mapRoot.transform, "Mid_Bench_Plaza", "Assets/Models/Environment/Village/Prefabs/Bench.prefab", new Vector3(0f, 0f, 25.5f), Quaternion.identity, Vector3.one * 1.2f);
-            SpawnPrefab(mapRoot.transform, "Mid_Lantern_Post", "Assets/Models/Environment/Village/Prefabs/Lantern.prefab", new Vector3(3f, 0f, 28f), Quaternion.identity, Vector3.one * 1.3f);
+            // Cover duel peti kayu di T-Mid Gate (Z = 15)
+            SpawnWoodCrate(mapRoot.transform, "Mid_Gate_Crate_W", "Crate_01", new Vector3(-3.0f, 0.6f, 15f), Vector3.one * 1.3f, _woodBrightMat);
+            SpawnWoodCrate(mapRoot.transform, "Mid_Gate_Crate_E", "Crate_04", new Vector3(3.0f, 0.6f, 15f), Vector3.one * 1.3f, _woodDarkMat);
 
-            // Cover peti kayu di Mid Lane
-            SpawnWoodCrate(mapRoot.transform, "Mid_Crate_Cover_W", "Crate_01", new Vector3(-6f, 0.6f, 22f), Vector3.one * 1.3f, _woodBrightMat);
-            SpawnWoodCrate(mapRoot.transform, "Mid_Crate_Cover_E", "Crate_04", new Vector3(4f, 0.6f, 32f), Vector3.one * 1.3f, _woodDarkMat);
+            // Monumen taman batu tengah Mid, bangku taman, dan pot bunga
+            CreateBlock(mapRoot.transform, "Mid_Plaza_Planter", new Vector3(0f, 0.4f, 26f), new Vector3(3.6f, 0.8f, 3.0f), stoneMat);
+            SpawnPrefab(mapRoot.transform, "Mid_Vase_Monument", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Vase.prefab", new Vector3(0f, 0.8f, 26f), Quaternion.identity, Vector3.one * 1.4f, stoneMat);
+            SpawnPrefab(mapRoot.transform, "Mid_Bench_Plaza_S", "Assets/Models/Environment/Village/Prefabs/Bench.prefab", new Vector3(0f, 0f, 23.5f), Quaternion.identity, Vector3.one * 1.2f);
+            SpawnPrefab(mapRoot.transform, "Mid_Bench_Plaza_N", "Assets/Models/Environment/Village/Prefabs/Bench.prefab", new Vector3(0f, 0f, 28.5f), Quaternion.identity, Vector3.one * 1.2f);
+            SpawnPrefab(mapRoot.transform, "Mid_FlowerPot_W", "Assets/Models/Environment/Village/Prefabs/Flower Pot.prefab", new Vector3(-2.4f, 0f, 26f), Quaternion.identity, Vector3.one * 1.3f);
+            SpawnPrefab(mapRoot.transform, "Mid_FlowerPot_E", "Assets/Models/Environment/Village/Prefabs/Flower Pot.prefab", new Vector3(2.4f, 0f, 26f), Quaternion.identity, Vector3.one * 1.3f);
+            SpawnPrefab(mapRoot.transform, "Mid_Lantern_W", "Assets/Models/Environment/Village/Prefabs/Lantern.prefab", new Vector3(-3.5f, 0f, 26f), Quaternion.identity, Vector3.one * 1.3f);
+            SpawnPrefab(mapRoot.transform, "Mid_Lantern_E", "Assets/Models/Environment/Village/Prefabs/Lantern.prefab", new Vector3(3.5f, 0f, 26f), Quaternion.identity, Vector3.one * 1.3f);
 
-            // ==========================================
-            // 5. APARTMENTS (APS) & BALCONY (Z = 32 s/d 54, X = 6 s/d 16)
-            // ==========================================
-            // Tangga outdoor naik ke lantai 2 apartemen (Prop_BuildingStairs)
-            SpawnPrefab(mapRoot.transform, "Aps_Stairs_Access", "Assets/Models/Environment/Town/Prefabs/Prop_BuildingStairs.prefab", new Vector3(8.5f, 0f, 35f), Quaternion.Euler(0f, 180f, 0f), Vector3.one * 1.25f, ironMat);
-
-            // Lantai 2 apartemen (Walkway dalam)
-            CreateBlock(mapRoot.transform, "Aps_SecondFloor_Deck", new Vector3(10f, 3.2f, 44f), new Vector3(6f, 0.35f, 16f), interiorMat);
-            CreateBlock(mapRoot.transform, "Aps_Hallway_Roof", new Vector3(10f, 5.8f, 44f), new Vector3(6.5f, 0.3f, 16.5f), roofMat);
-            CreateBlock(mapRoot.transform, "Aps_Wall_West", new Vector3(7f, 4.5f, 44f), new Vector3(0.6f, 2.6f, 16f), stuccoMat);
-
-            // BALKON APARTEMEN YANG MENGHADAP LANGSUNG KE SITE A!
-            CreateBlock(mapRoot.transform, "Aps_Balcony_Deck", new Vector3(13f, 3.2f, 54f), new Vector3(4.5f, 0.35f, 5.0f), ironMat);
-            SpawnPrefab(mapRoot.transform, "Aps_Balcony_Rail_North", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Rail.prefab", new Vector3(13f, 3.4f, 56.5f), Quaternion.identity, Vector3.one * 1.25f, stoneMat);
-            SpawnPrefab(mapRoot.transform, "Aps_Balcony_Rail_East", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Rail.prefab", new Vector3(15.2f, 3.4f, 54f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.25f, stoneMat);
-            SpawnWoodCrate(mapRoot.transform, "Aps_Balcony_Crate", "Crate_06", new Vector3(12f, 3.8f, 53f), Vector3.one * 1.1f, _woodDarkMat);
+            // Cover duel di Top Mid / Boiler Corner (Z = 34)
+            SpawnWoodCrate(mapRoot.transform, "Mid_Top_Crate_W", "Crate_02", new Vector3(-6.0f, 0.6f, 34f), Vector3.one * 1.3f, _woodDarkMat);
+            SpawnWoodCrate(mapRoot.transform, "Mid_Top_Crate_E", "Crate_05", new Vector3(4.5f, 0.6f, 34f), Vector3.one * 1.3f, _woodBrightMat);
+            CreateBarrelCluster(mapRoot.transform, "Mid_Top_Barrels", new Vector3(-4.5f, 0f, 46f), barrelDarkMat, barrelRedMat);
 
             // ==========================================
-            // 6. BOMBSITE A: GRAVEYARD, PIT & TRIPLE BOX (Z = 46 s/d 66, X = 14 s/d 28)
+            // 5. APARTMENTS (APS) & BALCONY (Z = 28 s/d 58, X = 6 s/d 16)
+            // ==========================================
+            // Tangga outdoor batu solid (Visible Stone Staircase) naik ke lantai 2 apartemen
+            int stepCount = 12;
+            float stairStartZ = 28.0f;
+            float stairEndZ = 35.0f;
+            float totalRise = 3.0f;
+            float stairWidth = 2.2f;
+            float stepDepth = (stairEndZ - stairStartZ) / stepCount; // 0.583m
+            float stepHeight = totalRise / stepCount; // 0.25m
+
+            for (int i = 0; i < stepCount; i++)
+            {
+                float stepZ = stairStartZ + (i + 0.5f) * stepDepth;
+                float currentHeight = (i + 1) * stepHeight;
+                // Balok batu nyata dari tanah ke ketinggian anak tangga (struktur solid, tidak melayang)
+                CreateBlock(mapRoot.transform, $"Aps_StoneStep_{i}",
+                    new Vector3(10.0f, currentHeight * 0.5f, stepZ),
+                    new Vector3(stairWidth, currentHeight, stepDepth + 0.05f),
+                    stoneMat);
+            }
+
+            // Pagar pembatas batu (Parapet) di sisi barat tangga agar pemain terlindung dan tidak jatuh ke samping
+            CreateBlock(mapRoot.transform, "Aps_Stairs_Parapet_Low", new Vector3(8.8f, 1.0f, 30.0f), new Vector3(0.25f, 1.8f, 4.0f), stoneMat);
+            CreateBlock(mapRoot.transform, "Aps_Stairs_Parapet_High", new Vector3(8.8f, 2.4f, 33.5f), new Vector3(0.25f, 1.8f, 3.5f), stoneMat);
+
+            // Undakan transisi di dasar tangga
+            CreateBlock(mapRoot.transform, "Aps_Stairs_BottomLanding", new Vector3(10.0f, 0.1f, 27.5f), new Vector3(stairWidth + 0.4f, 0.2f, 1.0f), groundMat);
+
+            // Smooth Incline Collider menyatu tepat di atas anak tangga batu untuk jalan yang mulus
+            CreateInvisibleRamp(mapRoot.transform, "Aps_Stairs_SmoothRamp",
+                new Vector3(10.0f, totalRise * 0.5f + 0.05f, (stairStartZ + stairEndZ) * 0.5f),
+                new Vector3(-23.2f, 0f, 0f),
+                new Vector3(stairWidth, 0.15f, 7.65f));
+
+            // Lantai 1: Jalan setapak batu paving di bawah pilar apartemen
+            CreateBlock(mapRoot.transform, "Aps_Ground_Paving", new Vector3(10.0f, 0.02f, 43.5f), new Vector3(6.2f, 0.04f, 17.0f), groundMat);
+
+            // Lantai 1: 6 Pilar batu penyangga di bawah dek apartemen (menghilangkan kesan melayang)
+            CreateBlock(mapRoot.transform, "Aps_Pillar_W1", new Vector3(7.2f, 1.5f, 36.0f), new Vector3(0.65f, 3.0f, 0.65f), stoneMat);
+            CreateBlock(mapRoot.transform, "Aps_Pillar_W2", new Vector3(7.2f, 1.5f, 43.5f), new Vector3(0.65f, 3.0f, 0.65f), stoneMat);
+            CreateBlock(mapRoot.transform, "Aps_Pillar_W3", new Vector3(7.2f, 1.5f, 51.0f), new Vector3(0.65f, 3.0f, 0.65f), stoneMat);
+            CreateBlock(mapRoot.transform, "Aps_Pillar_E1", new Vector3(12.8f, 1.5f, 36.0f), new Vector3(0.65f, 3.0f, 0.65f), stoneMat);
+            CreateBlock(mapRoot.transform, "Aps_Pillar_E2", new Vector3(12.8f, 1.5f, 43.5f), new Vector3(0.65f, 3.0f, 0.65f), stoneMat);
+            CreateBlock(mapRoot.transform, "Aps_Pillar_E3", new Vector3(12.8f, 1.5f, 51.0f), new Vector3(0.65f, 3.0f, 0.65f), stoneMat);
+
+            // Lantai 2: Lantai solid dek lorong apartemen dan atap genteng terakota
+            CreateBlock(mapRoot.transform, "Aps_SecondFloor_Deck", new Vector3(10.0f, 3.0f, 43.5f), new Vector3(6.2f, 0.35f, 17.0f), interiorMat);
+            CreateBlock(mapRoot.transform, "Aps_Hallway_Roof", new Vector3(10.0f, 6.0f, 43.5f), new Vector3(6.6f, 0.4f, 17.5f), roofMat);
+
+            // Lantai 2: Dinding Barat solid (memisahkan koridor dari Mid Lane)
+            CreateBlock(mapRoot.transform, "Aps_Wall_West", new Vector3(6.9f, 4.5f, 43.5f), new Vector3(0.4f, 3.0f, 17.0f), stuccoMat);
+
+            // Lantai 2: Dinding Timur dengan bukaan jendela intip sniper ke Long A
+            CreateBlock(mapRoot.transform, "Aps_Wall_East_S", new Vector3(13.1f, 4.5f, 38.5f), new Vector3(0.4f, 3.0f, 7.0f), stuccoMat);
+            CreateBlock(mapRoot.transform, "Aps_Wall_East_N", new Vector3(13.1f, 4.5f, 48.5f), new Vector3(0.4f, 3.0f, 7.0f), stuccoMat);
+            CreateBlock(mapRoot.transform, "Aps_Window_Sill", new Vector3(13.1f, 3.55f, 43.5f), new Vector3(0.4f, 1.1f, 3.0f), stoneMat);
+            CreateBlock(mapRoot.transform, "Aps_Window_Lintel", new Vector3(13.1f, 5.55f, 43.5f), new Vector3(0.4f, 0.9f, 3.0f), stoneMat);
+
+            // Lantai 2: Dinding Selatan dengan pintu masuk dari tangga
+            CreateBlock(mapRoot.transform, "Aps_Wall_South_L", new Vector3(7.9f, 4.5f, 35.0f), new Vector3(2.0f, 3.0f, 0.4f), stuccoMat);
+            CreateBlock(mapRoot.transform, "Aps_Wall_South_R", new Vector3(12.1f, 4.5f, 35.0f), new Vector3(2.0f, 3.0f, 0.4f), stuccoMat);
+            CreateBlock(mapRoot.transform, "Aps_Wall_South_Top", new Vector3(10.0f, 5.6f, 35.0f), new Vector3(2.2f, 0.8f, 0.4f), stuccoMat);
+
+            // Lantai 2: Dinding Utara dengan pintu keluar menuju balkon Site A
+            CreateBlock(mapRoot.transform, "Aps_Wall_North_L", new Vector3(8.5f, 4.5f, 52.0f), new Vector3(3.2f, 3.0f, 0.4f), stuccoMat);
+            CreateBlock(mapRoot.transform, "Aps_Wall_North_R", new Vector3(13.0f, 4.5f, 52.0f), new Vector3(0.6f, 3.0f, 0.4f), stuccoMat);
+            CreateBlock(mapRoot.transform, "Aps_Wall_North_Top", new Vector3(11.1f, 5.6f, 52.0f), new Vector3(2.0f, 0.8f, 0.4f), stuccoMat);
+
+            // Tactical Cover dan Pencahayaan di dalam lorong apartemen
+            SpawnWoodCrate(mapRoot.transform, "Aps_Hall_Crate_1", "Crate_04", new Vector3(8.5f, 3.6f, 40.0f), Vector3.one * 1.1f, _woodBrightMat);
+            SpawnWoodCrate(mapRoot.transform, "Aps_Hall_Crate_2", "Crate_01", new Vector3(11.5f, 3.6f, 47.0f), Vector3.one * 1.1f, _woodDarkMat);
+            SpawnPrefab(mapRoot.transform, "Aps_Hall_Lantern", "Assets/Models/Environment/Village/Prefabs/Lantern.prefab", new Vector3(7.3f, 4.2f, 43.5f), Quaternion.identity, Vector3.one * 1.1f);
+
+            // BALKON APARTEMEN MENGHADAP BOMBSITE A (Sesuai CS de_inferno Balcony)
+            CreateBlock(mapRoot.transform, "Aps_Balcony_Deck", new Vector3(11.5f, 3.0f, 55.0f), new Vector3(4.6f, 0.35f, 5.5f), stoneMat);
+            // Penyangga arsitektur di bawah balkon (Corbel brackets)
+            CreateBlock(mapRoot.transform, "Aps_Balcony_Corbel_1", new Vector3(9.8f, 2.2f, 53.5f), new Vector3(0.6f, 1.4f, 2.8f), stoneMat);
+            CreateBlock(mapRoot.transform, "Aps_Balcony_Corbel_2", new Vector3(13.0f, 2.2f, 53.5f), new Vector3(0.6f, 1.4f, 2.8f), stoneMat);
+
+            // Railing balustrade batu di sisi Utara dan Timur balkon
+            SpawnPrefab(mapRoot.transform, "Aps_Balcony_Rail_North_1", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Rail.prefab", new Vector3(10.2f, 3.35f, 57.6f), Quaternion.identity, Vector3.one * 1.25f, stoneMat);
+            SpawnPrefab(mapRoot.transform, "Aps_Balcony_Rail_North_2", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Rail.prefab", new Vector3(12.8f, 3.35f, 57.6f), Quaternion.identity, Vector3.one * 1.25f, stoneMat);
+            SpawnPrefab(mapRoot.transform, "Aps_Balcony_Rail_East_1", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Rail.prefab", new Vector3(13.7f, 3.35f, 53.6f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.25f, stoneMat);
+            SpawnPrefab(mapRoot.transform, "Aps_Balcony_Rail_East_2", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Rail.prefab", new Vector3(13.7f, 3.35f, 56.4f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.25f, stoneMat);
+
+            // Cover intip peti kayu dan lentera di balkon
+            SpawnWoodCrate(mapRoot.transform, "Aps_Balcony_Crate_1", "Crate_06", new Vector3(10.2f, 3.75f, 54.5f), Vector3.one * 1.15f, _woodDarkMat);
+            SpawnWoodCrate(mapRoot.transform, "Aps_Balcony_Crate_2", "Crate_02", new Vector3(10.2f, 4.65f, 54.5f), Vector3.one * 0.95f, _woodBrightMat);
+            SpawnPrefab(mapRoot.transform, "Aps_Balcony_Lantern", "Assets/Models/Environment/Village/Prefabs/Lantern.prefab", new Vector3(13.2f, 3.35f, 52.5f), Quaternion.identity, Vector3.one * 1.2f);
+
+            // ==========================================
+            // 6. BOMBSITE A: GRAVEYARD, PIT & TRIPLE BOX (Z = 20 s/d 66, X = 14 s/d 28)
             // ==========================================
             CreateBlock(mapRoot.transform, "SiteA_Paved_Floor", new Vector3(21f, 0.02f, 58f), new Vector3(15f, 0.05f, 18f), groundMat);
+
+            // Tactical Cover di sepanjang lorong Long A
+            SpawnWoodCrate(mapRoot.transform, "LongA_Cover_1A", "Crate_01", new Vector3(18f, 0.6f, 24f), Vector3.one * 1.3f, _woodBrightMat);
+            SpawnWoodCrate(mapRoot.transform, "LongA_Cover_1B", "Crate_06", new Vector3(18f, 1.6f, 24f), Vector3.one * 1.1f, _woodDarkMat);
+            SpawnWoodCrate(mapRoot.transform, "LongA_Cover_2A", "Crate_03", new Vector3(23f, 0.6f, 34f), Vector3.one * 1.4f, _woodBrightMat);
+            SpawnWoodCrate(mapRoot.transform, "LongA_Cover_2B", "Crate_05", new Vector3(23f, 1.7f, 34f), Vector3.one * 1.2f, _woodDarkMat);
+            CreateBarrelCluster(mapRoot.transform, "LongA_Connector_Barrels", new Vector3(16f, 0f, 44f), barrelDarkMat, barrelRedMat);
+            SpawnPrefab(mapRoot.transform, "LongA_Lantern", "Assets/Models/Environment/Village/Prefabs/Lantern.prefab", new Vector3(25f, 0f, 28f), Quaternion.identity, Vector3.one * 1.3f);
 
             // GRAVEYARD COLONNADE (Barisan pilar batu di sepanjang dinding utara/timur Site A)
             SpawnPrefab(mapRoot.transform, "SiteA_Pillar_1", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Pillar.prefab", new Vector3(16f, 0f, 65f), Quaternion.identity, Vector3.one * 1.4f, stoneMat);
@@ -326,10 +468,13 @@ namespace FPSFramework.Combat
             SpawnPrefab(mapRoot.transform, "SiteA_Graveyard_Rail_2", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Rail.prefab", new Vector3(23.5f, 0f, 65f), Quaternion.identity, Vector3.one * 1.3f, stoneMat);
             SpawnPrefab(mapRoot.transform, "SiteA_Graveyard_Vase_1", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Vase.prefab", new Vector3(16f, 2.2f, 65f), Quaternion.identity, Vector3.one * 1.3f, stoneMat);
             SpawnPrefab(mapRoot.transform, "SiteA_Graveyard_Vase_2", "Assets/Models/Environment/TrimSheet/TrimSheet_Prefabs/Vase.prefab", new Vector3(26f, 2.2f, 65f), Quaternion.identity, Vector3.one * 1.3f, stoneMat);
+            SpawnPrefab(mapRoot.transform, "SiteA_Graveyard_Bench", "Assets/Models/Environment/Village/Prefabs/Bench.prefab", new Vector3(25f, 0f, 62f), Quaternion.identity, Vector3.one * 1.2f);
+            SpawnPrefab(mapRoot.transform, "SiteA_Graveyard_Pine", "Assets/Models/Environment/Village/Prefabs/Pine Tree_3.prefab", new Vector3(28f, 0f, 67f), Quaternion.identity, Vector3.one * 1.4f);
 
             // PIT (Posisi pertahanan sunken di sudut barat daya Site A)
             CreateBlock(mapRoot.transform, "SiteA_Pit_Wall_N", new Vector3(26f, 0.65f, 44f), new Vector3(4.5f, 1.3f, 0.8f), stoneMat);
             CreateBlock(mapRoot.transform, "SiteA_Pit_Wall_W", new Vector3(23.5f, 0.65f, 41f), new Vector3(0.8f, 1.3f, 6.0f), stoneMat);
+            SpawnPrefab(mapRoot.transform, "SiteA_Pit_Bush_1", "Assets/Models/Environment/Town/Prefabs/Prop_Bush_01.prefab", new Vector3(27f, 0f, 39f), Quaternion.identity, Vector3.one * 1.3f);
             SpawnWoodCrate(mapRoot.transform, "SiteA_Pit_Crate_1", "Crate_02", new Vector3(26f, 0.6f, 42f), Vector3.one * 1.3f, _woodBrightMat);
             SpawnWoodCrate(mapRoot.transform, "SiteA_Pit_Crate_2", "Crate_07", new Vector3(26f, 1.6f, 42f), Vector3.one * 1.1f, _woodDarkMat);
 
@@ -355,6 +500,10 @@ namespace FPSFramework.Combat
             CreateCylinder(mapRoot.transform, "CT_Radio_Antenna", new Vector3(2f, 2.5f, 68f), new Vector3(0.15f, 2.5f, 0.15f), ironMat);
             SpawnWoodCrate(mapRoot.transform, "CT_Supply_1", "Crate_10", new Vector3(-2.5f, 0.6f, 67f), Vector3.one * 1.3f, _woodBrightMat);
             SpawnWoodCrate(mapRoot.transform, "CT_Supply_2", "Crate_12", new Vector3(2.5f, 0.6f, 67f), Vector3.one * 1.3f, _woodDarkMat);
+
+            // Cover taktis di jalan keluar CT Speedway menuju Site A & Site B
+            SpawnWoodCrate(mapRoot.transform, "CT_Speedway_Cover_W", "Crate_04", new Vector3(-8f, 0.6f, 63f), Vector3.one * 1.3f, _woodDarkMat);
+            SpawnWoodCrate(mapRoot.transform, "CT_Speedway_Cover_E", "Crate_02", new Vector3(8f, 0.6f, 63f), Vector3.one * 1.3f, _woodBrightMat);
 
             // Lentera & pohon di jalan CT Speedway
             SpawnPrefab(mapRoot.transform, "CT_Lantern_L", "Assets/Models/Environment/Village/Prefabs/Lantern.prefab", new Vector3(-6f, 0f, 65f), Quaternion.identity, Vector3.one * 1.3f);
@@ -474,11 +623,28 @@ namespace FPSFramework.Combat
             foreach (var r in rends)
             {
                 if (r == null) continue;
+
+                // Cegah Frustum Culling pada SkinnedMeshRenderer (karakter Mixamo) saat dekat dinding
+                if (r is SkinnedMeshRenderer smr)
+                {
+                    smr.updateWhenOffscreen = true;
+                    smr.localBounds = new Bounds(Vector3.up * 1.0f, new Vector3(3.5f, 3.5f, 3.5f));
+                    smr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                    smr.receiveShadows = true;
+                }
+
                 Material[] mats = r.sharedMaterials;
                 bool changed = false;
                 for (int i = 0; i < mats.Length; i++)
                 {
-                    if (mats[i] != null && mats[i].shader != null && (!mats[i].shader.name.StartsWith("Universal Render Pipeline") || mats[i].shader.name.Contains("Error")))
+                    if (mats[i] == null)
+                    {
+                        mats[i] = new Material(_cachedUrpShader) { color = new Color(0.35f, 0.38f, 0.35f) };
+                        changed = true;
+                        continue;
+                    }
+
+                    if (mats[i].shader != null && (!mats[i].shader.name.StartsWith("Universal Render Pipeline") || mats[i].shader.name.Contains("Error")))
                     {
                         Material newMat = new Material(_cachedUrpShader);
                         if (mats[i].HasProperty("_BaseMap") && mats[i].GetTexture("_BaseMap") != null)
@@ -489,13 +655,28 @@ namespace FPSFramework.Combat
                         if (mats[i].HasProperty("_BumpMap") && mats[i].GetTexture("_BumpMap") != null)
                             newMat.SetTexture("_BumpMap", mats[i].GetTexture("_BumpMap"));
 
-                        if (mats[i].HasProperty("_BaseColor"))
-                            newMat.SetColor("_BaseColor", mats[i].GetColor("_BaseColor"));
-                        else if (mats[i].HasProperty("_Color"))
-                            newMat.SetColor("_BaseColor", mats[i].GetColor("_Color"));
+                        Color col = Color.white;
+                        if (mats[i].HasProperty("_BaseColor")) col = mats[i].GetColor("_BaseColor");
+                        else if (mats[i].HasProperty("_Color")) col = mats[i].GetColor("_Color");
+                        col.a = 1.0f; // Jamin selalu solid opaque, tidak tembus pandang
+                        newMat.SetColor("_BaseColor", col);
+
+                        newMat.SetFloat("_Surface", 0f); // Opaque
+                        newMat.renderQueue = 2000;
 
                         mats[i] = newMat;
                         changed = true;
+                    }
+                    else if (mats[i].shader != null && mats[i].HasProperty("_BaseColor"))
+                    {
+                        Color c = mats[i].GetColor("_BaseColor");
+                        if (c.a < 0.95f)
+                        {
+                            c.a = 1.0f;
+                            mats[i].SetColor("_BaseColor", c);
+                            if (mats[i].HasProperty("_Surface")) mats[i].SetFloat("_Surface", 0f);
+                            changed = true;
+                        }
                     }
                 }
                 if (changed) r.sharedMaterials = mats;
@@ -505,6 +686,8 @@ namespace FPSFramework.Combat
         [ContextMenu("Clear Arena")]
         public void ClearArena()
         {
+            CleanupOldMapRoots();
+
             GameObject existingNew = GameObject.Find(ArenaRootName);
             if (existingNew != null)
             {
@@ -595,7 +778,7 @@ namespace FPSFramework.Combat
 
         public static void CleanupStrayObjects()
         {
-            string[] trashNames = { "Target_Dummy", "Button_Static", "Button_Linear", "Button_Jiggle", "Idle", "Enemy_Bot_Soldier" };
+            string[] trashNames = { "Target_Dummy", "Button_Static", "Button_Linear", "Button_Jiggle", "Idle", "Enemy_Bot_Soldier", "Aps_Stairs_InvisibleRamp", "Aps_Stairs_Access" };
             foreach (var tName in trashNames)
             {
                 GameObject obj = GameObject.Find(tName);
@@ -714,6 +897,16 @@ namespace FPSFramework.Combat
                 Collider[] mixamoCols = mixamoMesh.GetComponentsInChildren<Collider>();
                 foreach (var c in mixamoCols) SafeDestroy(c);
 
+                SkinnedMeshRenderer[] smrs = mixamoMesh.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+                foreach (var smr in smrs)
+                {
+                    if (smr == null) continue;
+                    smr.updateWhenOffscreen = true;
+                    smr.localBounds = new Bounds(Vector3.up * 1.0f, new Vector3(3.5f, 3.5f, 3.5f));
+                    smr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                    smr.receiveShadows = true;
+                }
+
                 FixRenderers(mixamoMesh);
                 meshSpawned = true;
             }
@@ -811,6 +1004,20 @@ namespace FPSFramework.Combat
             }
 
             return cyl;
+        }
+
+        private GameObject CreateInvisibleRamp(Transform parent, string rampName, Vector3 localPos, Vector3 localEulerAngles, Vector3 boxSize)
+        {
+            GameObject ramp = new GameObject(rampName);
+            ramp.transform.SetParent(parent, false);
+            ramp.transform.localPosition = localPos;
+            ramp.transform.localEulerAngles = localEulerAngles;
+            ramp.transform.localScale = Vector3.one;
+
+            BoxCollider col = ramp.AddComponent<BoxCollider>();
+            col.size = boxSize;
+            col.isTrigger = false;
+            return ramp;
         }
 
         private void CreateBarrelCluster(Transform parent, string clusterName, Vector3 centerPos, Material barrelMat, Material secondaryMat = null)

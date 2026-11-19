@@ -58,19 +58,22 @@ namespace FPSFramework.Combat
                 }
             }
 
-            // Fallback koordinat matematis jika trigger belum aktif di scene
-            // Site A: X [16, 26], Z [53, 63]
-            if (worldPos.x >= 16f && worldPos.x <= 26f && worldPos.z >= 53f && worldPos.z <= 63f)
+            // Fallback koordinat matematis ketat jika komponen PlantZone belum terdaftar di AllZones
+            if (AllZones.Count == 0)
             {
-                site = "Site A";
-                return true;
-            }
+                // Site A Pelat Kuning: X [16.75, 25.25], Z [54.75, 62.25]
+                if (worldPos.x >= 16.75f && worldPos.x <= 25.25f && worldPos.z >= 54.75f && worldPos.z <= 62.25f && worldPos.y >= -0.5f && worldPos.y <= 3.5f)
+                {
+                    site = "Site A";
+                    return true;
+                }
 
-            // Site B: X [-25, -15], Z [47, 57]
-            if (worldPos.x >= -25f && worldPos.x <= -15f && worldPos.z >= 47f && worldPos.z <= 57f)
-            {
-                site = "Site B";
-                return true;
+                // Site B Pelat Kuning: X [-24.0, -15.0], Z [47.5, 56.5]
+                if (worldPos.x >= -24.0f && worldPos.x <= -15.0f && worldPos.z >= 47.5f && worldPos.z <= 56.5f && worldPos.y >= -0.5f && worldPos.y <= 3.5f)
+                {
+                    site = "Site B";
+                    return true;
+                }
             }
 
             site = "";

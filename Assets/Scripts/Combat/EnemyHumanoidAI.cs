@@ -254,17 +254,7 @@ namespace FPSFramework.Combat
             switch (_currentState)
             {
                 case EnemyAIState.Patrol:
-                    // 1. Cek apakah bot pembawa bom sudah tiba di area plant resmi (Site A atau Site B)
-                    if (hasC4 && PlantedC4.ActiveC4 == null && PlantZone.IsPositionInPlantZone(transform.position, out string site))
-                    {
-                        _currentState = EnemyAIState.PlantingC4;
-                        _plantProgress = 0f;
-                        if (_navAgent != null && _navAgent.isOnNavMesh) _navAgent.isStopped = true;
-                        if (_animator != null) { _animator.SetFloat("Speed", 0f); _animator.SetFloat("MoveY", 0f); }
-                        break;
-                    }
-
-                    // 2. Evaluasi penglihatan musuh
+                    // 1. Evaluasi penglihatan musuh
                     if (canSeePlayer)
                     {
                         _currentState = EnemyAIState.Alert;
@@ -274,7 +264,7 @@ namespace FPSFramework.Combat
                     }
                     else
                     {
-                        // 3. Cek pengambilan C4 yang terjatuh jika bot tidak memegang C4
+                        // 2. Cek pengambilan C4 yang terjatuh jika bot tidak memegang C4
                         if (!hasC4 && PlantedC4.ActiveC4 == null)
                         {
                             if (TryHandleDroppedC4Recovery()) break;
@@ -419,7 +409,10 @@ namespace FPSFramework.Combat
             float distToWaypoint = Vector2.Distance(new Vector2(myPos.x, myPos.z),
                                                    new Vector2(targetWaypoint.x, targetWaypoint.z));
 
-            if (distToWaypoint <= waypointTolerance)
+            bool isAtFinalWaypoint = _currentWaypointIndex == _patrolWaypoints.Count - 1;
+            bool reachedWaypoint = distToWaypoint <= waypointTolerance || (isAtFinalWaypoint && distToWaypoint <= 2.2f);
+
+            if (reachedWaypoint)
             {
                 // Jika bot membawa bom dan tiba di dalam zona resmi Plant (Site A atau Site B):
                 if (hasC4 && PlantedC4.ActiveC4 == null && PlantZone.IsPositionInPlantZone(transform.position, out string detectedSite))

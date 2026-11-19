@@ -221,12 +221,12 @@ namespace FPSFramework.Player
 
             // Gunakan SphereCast tipis (radius 0.18m) agar serangan pisau terasa responsif dan mudah mengenai musuh
             RaycastHit hit;
-            bool didHit = Physics.SphereCast(ray.origin, 0.18f, attackDir, out hit, range, _hitLayers);
+            bool didHit = Physics.SphereCast(ray.origin, 0.18f, attackDir, out hit, range, _hitLayers, QueryTriggerInteraction.Ignore);
 
             if (!didHit)
             {
                 // Fallback ke Raycast tajam jika spherecast tidak membentur
-                didHit = Physics.Raycast(ray.origin, attackDir, out hit, range, _hitLayers);
+                didHit = Physics.Raycast(ray.origin, attackDir, out hit, range, _hitLayers, QueryTriggerInteraction.Ignore);
             }
 
             if (didHit)
