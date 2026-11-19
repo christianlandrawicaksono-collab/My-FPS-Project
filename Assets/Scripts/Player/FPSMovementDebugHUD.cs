@@ -104,6 +104,8 @@ namespace FPSFramework.Player
 
         private void DrawDynamicCrosshair(float inaccuracy)
         {
+            if (_weapon != null && _weapon.IsScoped) return;
+
             float totalSpread = inaccuracy;
             if (_weapon != null)
             {

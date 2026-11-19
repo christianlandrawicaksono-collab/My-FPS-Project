@@ -42,6 +42,8 @@ namespace FPSFramework.Combat
         public const int CostDefuseKit = 400;
         public const int CostSMGK = 1500;
         public const int CostSMGAmmo = 200;
+        public const int CostAWP = 4750;
+        public const int CostAWPAmmo = 300;
         public const int CostPistolAmmo = 100;
         public const int CostFragGrenade = 300;
 
@@ -318,21 +320,61 @@ namespace FPSFramework.Combat
             FPSWeaponManager wm = FPSWeaponManager.Instance;
             if (wm == null) return false;
 
-            FPSWeapon smg = wm.GetComponentInChildren<FPSWeapon>();
-            if (smg != null && smg.WeaponName.Contains("SMG"))
+            // Jika pemain saat ini sudah memegang senapan SMG-K, beli isi ulang amunisi
+            if (wm.CurrentPrimaryType == FPSWeaponManager.PrimaryWeaponType.Rifle)
             {
-                // Jika sudah memiliki SMG, beli isi ulang amunisi
                 return TryBuySMGAmmo();
             }
 
             if (DeductCash(CostSMGK))
             {
-                wm.SwitchToSlot(WeaponSlot.Primary);
+                wm.EquipRiflePrimary();
                 if (wm.ActiveGun != null)
                 {
                     wm.ActiveGun.ResetAmmoAndRecoil();
                 }
                 OnItemPurchased?.Invoke("SMG-K TACTICAL");
+                return true;
+            }
+            return false;
+        }
+
+        public bool TryBuyAWP()
+        {
+            FPSWeaponManager wm = FPSWeaponManager.Instance;
+            if (wm == null) return false;
+
+            // Jika pemain saat ini sudah memegang Sniper AWP, beli isi ulang amunisi
+            if (wm.CurrentPrimaryType == FPSWeaponManager.PrimaryWeaponType.Sniper)
+            {
+                return TryBuyAWPAmmo();
+            }
+
+            if (DeductCash(CostAWP))
+            {
+                wm.EquipSniperPrimary();
+                if (wm.ActiveGun != null)
+                {
+                    wm.ActiveGun.ResetAmmoAndRecoil();
+                }
+                OnItemPurchased?.Invoke("AWP MAGNUM SNIPER");
+                return true;
+            }
+            return false;
+        }
+
+        public bool TryBuyAWPAmmo()
+        {
+            FPSWeaponManager wm = FPSWeaponManager.Instance;
+            if (wm == null) return false;
+
+            if (DeductCash(CostAWPAmmo))
+            {
+                if (wm.SniperGun != null)
+                {
+                    wm.SniperGun.ResetAmmoAndRecoil();
+                }
+                OnItemPurchased?.Invoke("AWP AMMO REFILL");
                 return true;
             }
             return false;
@@ -345,7 +387,11 @@ namespace FPSFramework.Combat
 
             if (DeductCash(CostSMGAmmo))
             {
-                if (wm.ActiveGun != null)
+                if (wm.RifleGun != null)
+                {
+                    wm.RifleGun.ResetAmmoAndRecoil();
+                }
+                else if (wm.ActiveGun != null)
                 {
                     wm.ActiveGun.ResetAmmoAndRecoil();
                 }

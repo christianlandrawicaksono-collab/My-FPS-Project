@@ -628,7 +628,7 @@ namespace FPSFramework.Combat
 
 #if UNITY_EDITOR
             // Gunakan Model Mixamo Humanoid jika tersedia di project
-            GameObject mixamoFbx = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Mixamo/Idle.fbx");
+            GameObject mixamoFbx = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Characters/Mixamo/Idle.fbx");
             if (mixamoFbx != null)
             {
                 GameObject mixamoMesh = (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(mixamoFbx, botObj.transform);
@@ -636,7 +636,7 @@ namespace FPSFramework.Combat
                 mixamoMesh.transform.localPosition = Vector3.zero;
                 mixamoMesh.transform.localRotation = Quaternion.identity;
 
-                RuntimeAnimatorController animCtrl = UnityEditor.AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Mixamo/Player_AnimatorController.controller");
+                RuntimeAnimatorController animCtrl = UnityEditor.AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Models/Characters/Mixamo/Player_AnimatorController.controller");
                 Animator anim = mixamoMesh.GetComponent<Animator>();
                 if (anim != null && animCtrl != null)
                 {

@@ -29,6 +29,8 @@ namespace FPSFramework.Player
         public bool IsWalkActive { get; private set; }
         public bool IsFireHeld { get; private set; }
         public bool FireTriggered { get; private set; }
+        public bool IsScopeHeld { get; private set; }
+        public bool ScopeTriggered { get; private set; }
         public bool ReloadTriggered { get; private set; }
 
         // Action references
@@ -39,6 +41,7 @@ namespace FPSFramework.Player
         private InputAction _crouchAction;
         private InputAction _sprintAction; // Digunakan sebagai Walk/Silent di tactical shooter
         private InputAction _attackAction;
+        private InputAction _scopeAction;
 
         private bool _crouchToggleState;
         private bool _walkToggleState;
@@ -68,6 +71,7 @@ namespace FPSFramework.Player
                     _crouchAction = _playerMap.FindAction("Crouch", false);
                     _sprintAction = _playerMap.FindAction("Sprint", false);
                     _attackAction = _playerMap.FindAction("Attack", false);
+                    _scopeAction = _playerMap.FindAction("Aim", false) ?? _playerMap.FindAction("Scope", false) ?? _playerMap.FindAction("Fire2", false);
 
                     BindActionCallbacks();
                     _playerMap.Enable();
@@ -180,6 +184,23 @@ namespace FPSFramework.Player
                 FireTriggered = false;
             }
 
+            // Update Scope / Aim input (RMB)
+            if (_scopeAction != null)
+            {
+                IsScopeHeld = _scopeAction.IsPressed();
+                ScopeTriggered = _scopeAction.WasPressedThisFrame();
+            }
+            else if (Mouse.current != null)
+            {
+                IsScopeHeld = Mouse.current.rightButton.isPressed;
+                ScopeTriggered = Mouse.current.rightButton.wasPressedThisFrame;
+            }
+            else
+            {
+                IsScopeHeld = false;
+                ScopeTriggered = false;
+            }
+
             // Update Reload input (Key R)
             if (Keyboard.current != null)
             {
@@ -199,6 +220,19 @@ namespace FPSFramework.Player
             if (FireTriggered)
             {
                 FireTriggered = false;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Mengambil status ScopeTriggered dan langsung me-reset-nya.
+        /// </summary>
+        public bool ConsumeScopeTriggered()
+        {
+            if (ScopeTriggered)
+            {
+                ScopeTriggered = false;
                 return true;
             }
             return false;

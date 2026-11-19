@@ -742,10 +742,10 @@ namespace FPSFramework.Combat
             {
                 GameObject c4Prefab = null;
 #if UNITY_EDITOR
-                c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Stylized Explosives/Prefabs/Dynamite_Multi.prefab");
+                c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Props/Explosives/Prefabs/Dynamite_Multi.prefab");
                 if (c4Prefab == null)
                 {
-                    c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Stylized Explosives/Models/Dynamite_Multi.fbx");
+                    c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Props/Explosives/Models/Dynamite_Multi.fbx");
                 }
 #endif
                 if (c4Prefab != null)
@@ -774,10 +774,10 @@ namespace FPSFramework.Combat
         {
             GameObject c4Prefab = null;
 #if UNITY_EDITOR
-            c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Stylized Explosives/Prefabs/Dynamite_Multi.prefab");
+            c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Props/Explosives/Prefabs/Dynamite_Multi.prefab");
             if (c4Prefab == null)
             {
-                c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Stylized Explosives/Models/Dynamite_Multi.fbx");
+                c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Props/Explosives/Models/Dynamite_Multi.fbx");
             }
 #endif
             GameObject dropped = null;

@@ -6,6 +6,16 @@ using FPSFramework.Combat;
 namespace FPSFramework.Player
 {
     /// <summary>
+    /// Tingkat perbesaran teropong sniper taktis (AWP / Recon).
+    /// </summary>
+    public enum SniperScopeStage
+    {
+        Unscoped = 0,
+        Zoom1 = 1,
+        Zoom2 = 2
+    }
+
+    /// <summary>
     /// Sistem Penembakan Senjata FPS bernuansa Tactical Shooter (CS / Valorant).
     /// Mengintegrasikan:
     /// 1. Hitscan Raycast presisi tinggi.
@@ -95,6 +105,46 @@ namespace FPSFramework.Player
         [SerializeField] private AudioClip headshotSound;
         [Tooltip("Suara benturan peluru pada badan/target.")]
         [SerializeField] private AudioClip fleshHitSound;
+
+        [Header("Sniper & Telescopic Scope System (AWP)")]
+        [Tooltip("Apakah senjata ini adalah Sniper berteropong (AWP / Recon)?")]
+        [SerializeField] private bool isSniper = false;
+
+        [Tooltip("Apakah senjata memiliki mekanisme kokang manual bolt-action (tembak per peluru)?")]
+        [SerializeField] private bool isBoltAction = false;
+
+        [Tooltip("FOV kamera pada zoom tahap 1 (sekitar 40 derajat).")]
+        [SerializeField] private float scopeZoomFov1 = 40f;
+
+        [Tooltip("FOV kamera pada zoom tahap 2 (sekitar 15 derajat).")]
+        [SerializeField] private float scopeZoomFov2 = 15f;
+
+        [Tooltip("Inakurasi besar saat menembak tanpa membidik (noscope spread).")]
+        [SerializeField] private float noscopeInaccuracy = 0.16f;
+
+        [Tooltip("Inakurasi saat membidik teropong sambil bergerak/lari.")]
+        [SerializeField] private float scopedMoveInaccuracy = 0.08f;
+
+        [Tooltip("Durasi animasi siklus kokang bolt-action (detik).")]
+        [SerializeField] private float boltCycleDuration = 1.45f;
+
+        [Tooltip("Audio klik saat membuka/mengganti perbesaran teropong.")]
+        [SerializeField] private AudioClip scopeInSound;
+
+        [Tooltip("Audio kokang tuas bolt setelah menembak.")]
+        [SerializeField] private AudioClip boltCycleSound;
+
+        public bool IsSniper => isSniper;
+        public bool IsBoltAction => isBoltAction;
+        public SniperScopeStage CurrentScopeStage { get; private set; } = SniperScopeStage.Unscoped;
+        public bool IsScoped => isSniper && CurrentScopeStage != SniperScopeStage.Unscoped;
+        public bool IsBoltCycling { get; private set; } = false;
+
+        public static event System.Action<SniperScopeStage> OnSniperScopeChanged;
+
+        private float _defaultFov = 80f;
+        private Coroutine _boltRoutine;
+        private Renderer[] _cachedWeaponRenderers;
 
         public AudioClip ShootSound => shootSound;
         public AudioClip ReloadSound => reloadSound;
@@ -291,6 +341,10 @@ namespace FPSFramework.Player
             SetupMuzzleFlash();
             SetupImpactSparks();
             FixWeaponMaterials();
+
+            if (playerCamera == null) playerCamera = Camera.main;
+            if (playerCamera != null) _defaultFov = playerCamera.fieldOfView;
+            _cachedWeaponRenderers = GetComponentsInChildren<Renderer>(true);
         }
 
         private void Start()
@@ -304,7 +358,7 @@ namespace FPSFramework.Player
 #if UNITY_EDITOR
             if (equipSound == null)
             {
-                equipSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/AssaultRifle/Foley/sfx_wpn_ar_foley_equip_01.wav");
+                equipSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/AssaultRifle/Foley/sfx_wpn_ar_foley_equip_01.wav");
             }
 #endif
         }
@@ -322,7 +376,14 @@ namespace FPSFramework.Player
 
         private void OnDisable()
         {
+            ResetScope();
             CancelReload();
+            if (_boltRoutine != null)
+            {
+                StopCoroutine(_boltRoutine);
+                _boltRoutine = null;
+                IsBoltCycling = false;
+            }
             _currentSprayBloom = 0f;
             BurstBulletIndex = 0;
             CurrentSprayOffset = Vector2.zero;
@@ -351,6 +412,16 @@ namespace FPSFramework.Player
 
         private void Update()
         {
+            // Transisi FOV kamera teropong sniper taktis
+            if (isSniper && playerCamera != null)
+            {
+                float targetFov = _defaultFov;
+                if (CurrentScopeStage == SniperScopeStage.Zoom1) targetFov = scopeZoomFov1;
+                else if (CurrentScopeStage == SniperScopeStage.Zoom2) targetFov = scopeZoomFov2;
+
+                playerCamera.fieldOfView = Mathf.Lerp(playerCamera.fieldOfView, targetFov, Time.deltaTime * 24f);
+            }
+
             HandleRecovery();
             HandleInput();
             UpdateViewmodelAnimation();
@@ -361,16 +432,24 @@ namespace FPSFramework.Player
             if (FiringLocked) return;
             if (_inputReader == null) return;
 
+            // Trigger Scope Teropong (Klik Kanan RMB) untuk Sniper AWP
+            if (isSniper && _inputReader.ConsumeScopeTriggered() && !IsReloading && !IsBoltCycling)
+            {
+                CycleSniperScope();
+            }
+
             // Trigger Reload
-            if (_inputReader.ConsumeReloadTriggered() && !IsReloading && CurrentAmmo < magazineSize)
+            if (_inputReader.ConsumeReloadTriggered() && !IsReloading && CurrentAmmo < magazineSize && !IsBoltCycling)
             {
                 if (_reloadRoutine != null) StopCoroutine(_reloadRoutine);
                 _reloadRoutine = StartCoroutine(ReloadRoutine());
                 return;
             }
 
-            // Fire Tembakan
-            if (_inputReader.IsFireHeld && Time.time >= _nextFireTime && !IsReloading)
+            // Fire Tembakan (Bolt-Action menggunakan Single Press, Otomatis menggunakan Hold)
+            bool fireRequested = isBoltAction ? _inputReader.ConsumeFireTriggered() : _inputReader.IsFireHeld;
+
+            if (fireRequested && Time.time >= _nextFireTime && !IsReloading && !IsBoltCycling)
             {
                 if (CurrentAmmo > 0)
                 {
@@ -403,8 +482,25 @@ namespace FPSFramework.Player
                 movePenalty = _movementState.InaccuracyModifier * movementInaccuracyMultiplier;
             }
 
-            CurrentSpread = baseSpread + _currentSprayBloom + movePenalty;
-            _currentSprayBloom = Mathf.Min(_currentSprayBloom + sprayIncreasePerShot, maxSpraySpread);
+            if (isSniper)
+            {
+                if (!IsScoped)
+                {
+                    // Noscope: Inakurasi masif ala CS2
+                    CurrentSpread = noscopeInaccuracy + movePenalty * 1.5f;
+                }
+                else
+                {
+                    // Scoped: Jika bergerak, ada penalty. Jika diam (counter-strafe), laser pin-point (baseSpread)
+                    bool isMoving = _movementState != null && _movementState.InaccuracyModifier > 0.04f;
+                    CurrentSpread = isMoving ? (scopedMoveInaccuracy + movePenalty) : baseSpread;
+                }
+            }
+            else
+            {
+                CurrentSpread = baseSpread + _currentSprayBloom + movePenalty;
+                _currentSprayBloom = Mathf.Min(_currentSprayBloom + sprayIncreasePerShot, maxSpraySpread);
+            }
 
             // Play shoot audio (dengan variasi klip jika tersedia)
             AudioClip clipToPlay = shootSound;
@@ -416,7 +512,7 @@ namespace FPSFramework.Player
             if (clipToPlay != null)
             {
                 _audioSource.pitch = Random.Range(0.96f, 1.04f); // Subtle pitch variation
-                _audioSource.PlayOneShot(clipToPlay, 0.85f);
+                _audioSource.PlayOneShot(clipToPlay, 0.95f);
             }
 
             // Lapisan 1: Sentakan Camera Recoil Punch ke FPSCameraController
@@ -448,6 +544,13 @@ namespace FPSFramework.Player
 
             // Lapisan 2: Lakukan Raycast dengan offset Spray Pattern kurva
             ExecuteRaycast(CurrentSpread, sprayOffset);
+
+            // Memicu siklus kokang bolt-action untuk Sniper Rifle
+            if (isBoltAction)
+            {
+                if (_boltRoutine != null) StopCoroutine(_boltRoutine);
+                _boltRoutine = StartCoroutine(BoltActionRoutine());
+            }
         }
 
         private void ExecuteRaycast(float spreadAngle, Vector2 sprayOffset)
@@ -806,6 +909,8 @@ namespace FPSFramework.Player
                 yield break;
             }
 
+            if (isSniper) ResetScope();
+
             IsReloading = true;
             _reloadTimer = 0f;
             BurstBulletIndex = 0;
@@ -866,6 +971,9 @@ namespace FPSFramework.Player
         public void ResetAmmoAndRecoil()
         {
             StopAllCoroutines();
+            if (isSniper) ResetScope();
+            IsBoltCycling = false;
+            _boltRoutine = null;
             IsReloading = false;
             CurrentAmmo = magazineSize;
             ReserveAmmo = maxReserveAmmo;
@@ -1020,5 +1128,164 @@ namespace FPSFramework.Player
                 }
             }
         }
+
+        #region Sniper & Scope Methods
+
+        /// <summary>
+        /// Mengganti perbesaran teropong sniper bertahap (Unscoped -> Zoom 1x -> Zoom 2x -> Unscoped).
+        /// </summary>
+        public void CycleSniperScope()
+        {
+            if (!isSniper) return;
+
+            if (CurrentScopeStage == SniperScopeStage.Unscoped)
+            {
+                SetScopeStage(SniperScopeStage.Zoom1);
+            }
+            else if (CurrentScopeStage == SniperScopeStage.Zoom1)
+            {
+                SetScopeStage(SniperScopeStage.Zoom2);
+            }
+            else
+            {
+                SetScopeStage(SniperScopeStage.Unscoped);
+            }
+        }
+
+        /// <summary>
+        /// Mengatur tahap zoom sniper secara eksplisit.
+        /// </summary>
+        public void SetScopeStage(SniperScopeStage stage)
+        {
+            if (!isSniper) return;
+            CurrentScopeStage = stage;
+
+            if (scopeInSound != null && stage != SniperScopeStage.Unscoped && _audioSource != null)
+            {
+                _audioSource.pitch = 1.0f;
+                _audioSource.PlayOneShot(scopeInSound, 0.95f);
+            }
+
+            UpdateViewmodelVisibilityForScope();
+            OnSniperScopeChanged?.Invoke(CurrentScopeStage);
+        }
+
+        /// <summary>
+        /// Melepas bidikan zoom teropong kembali ke tampilan normal senjata di tangan.
+        /// </summary>
+        public void ResetScope()
+        {
+            if (!isSniper) return;
+            CurrentScopeStage = SniperScopeStage.Unscoped;
+            if (playerCamera != null) playerCamera.fieldOfView = _defaultFov;
+            UpdateViewmodelVisibilityForScope();
+            OnSniperScopeChanged?.Invoke(SniperScopeStage.Unscoped);
+        }
+
+        /// <summary>
+        /// Mengatur visibilitas viewmodel senjata saat teropong aktif (agar tidak menutupi lensa teropong).
+        /// </summary>
+        private void UpdateViewmodelVisibilityForScope()
+        {
+            if (_cachedWeaponRenderers == null || _cachedWeaponRenderers.Length == 0)
+            {
+                _cachedWeaponRenderers = GetComponentsInChildren<Renderer>(true);
+            }
+
+            bool showViewmodel = (CurrentScopeStage == SniperScopeStage.Unscoped);
+            for (int i = 0; i < _cachedWeaponRenderers.Length; i++)
+            {
+                if (_cachedWeaponRenderers[i] != null)
+                {
+                    _cachedWeaponRenderers[i].enabled = showViewmodel;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Siklus kokang tuas bolt-action setelah menembakkan 1 peluru kaliber berat.
+        /// </summary>
+        private IEnumerator BoltActionRoutine()
+        {
+            IsBoltCycling = true;
+            SniperScopeStage prevScope = CurrentScopeStage;
+
+            // Sesaat unscope saat recoil hentakan berat dan kokang tuas bolt
+            if (prevScope != SniperScopeStage.Unscoped)
+            {
+                CurrentScopeStage = SniperScopeStage.Unscoped;
+                UpdateViewmodelVisibilityForScope();
+                OnSniperScopeChanged?.Invoke(SniperScopeStage.Unscoped);
+            }
+
+            yield return new WaitForSeconds(boltCycleDuration * 0.35f);
+
+            if (boltCycleSound != null && _audioSource != null)
+            {
+                _audioSource.pitch = Random.Range(0.97f, 1.03f);
+                _audioSource.PlayOneShot(boltCycleSound, 0.85f);
+            }
+
+            yield return new WaitForSeconds(boltCycleDuration * 0.65f);
+
+            // Re-scope otomatis jika pemain masih memegang senjata dan tidak sedang reload
+            if (prevScope != SniperScopeStage.Unscoped && !IsReloading && this.gameObject.activeInHierarchy)
+            {
+                SetScopeStage(prevScope);
+            }
+
+            IsBoltCycling = false;
+            _boltRoutine = null;
+        }
+
+        /// <summary>
+        /// Mengonfigurasi persenjataan sebagai Sniper Rifle taktis berteropong (AWP / Recon).
+        /// </summary>
+        public void ConfigureAsSniper(
+            string name,
+            float damage,
+            float fireInterval,
+            int magSize,
+            int reserveAmmo,
+            float reloadDur,
+            AudioClip shootClip,
+            AudioClip reloadClip,
+            AudioClip scopeClip,
+            AudioClip boltClip = null)
+        {
+            weaponName = name;
+            baseDamage = damage;
+            fireRate = fireInterval;
+            magazineSize = magSize;
+            maxReserveAmmo = reserveAmmo;
+            reloadDuration = reloadDur;
+            shootSound = shootClip;
+            reloadSound = reloadClip;
+            scopeInSound = scopeClip;
+            boltCycleSound = boltClip;
+
+            isSniper = true;
+            isBoltAction = true;
+            baseSpread = 0.0001f;
+            noscopeInaccuracy = 0.16f;
+            scopedMoveInaccuracy = 0.08f;
+            boltCycleDuration = 1.35f;
+
+            // Recoil kickback sniper berat
+            cameraPitchKick = 4.2f;
+            cameraYawKick = 1.2f;
+            kickbackDistance = 0.12f;
+            kickbackUp = 0.05f;
+
+            CurrentAmmo = magazineSize;
+            ReserveAmmo = maxReserveAmmo;
+            CurrentSpread = baseSpread;
+
+            if (playerCamera == null) playerCamera = Camera.main;
+            if (playerCamera != null) _defaultFov = playerCamera.fieldOfView;
+            _cachedWeaponRenderers = GetComponentsInChildren<Renderer>(true);
+        }
+
+        #endregion
     }
 }

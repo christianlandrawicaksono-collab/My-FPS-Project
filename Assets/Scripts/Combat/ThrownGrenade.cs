@@ -63,7 +63,7 @@ namespace FPSFramework.Combat
 #if UNITY_EDITOR
             if (explosionSound == null)
             {
-                explosionSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/GrenadeLauncher/sfx_wpn_gl_explosion.wav");
+                explosionSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/GrenadeLauncher/sfx_wpn_gl_explosion.wav");
             }
 #endif
         }

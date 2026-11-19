@@ -57,10 +57,10 @@ namespace FPSFramework.Combat
             // Instansiasi model 3D Dynamite_Multi jika tersedia
             GameObject fbxModel = null;
 #if UNITY_EDITOR
-            fbxModel = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Stylized Explosives/Prefabs/Dynamite_Multi.prefab");
+            fbxModel = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Props/Explosives/Prefabs/Dynamite_Multi.prefab");
             if (fbxModel == null)
             {
-                fbxModel = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Stylized Explosives/Models/Dynamite_Multi.fbx");
+                fbxModel = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Props/Explosives/Models/Dynamite_Multi.fbx");
             }
 #endif
             if (fbxModel != null)

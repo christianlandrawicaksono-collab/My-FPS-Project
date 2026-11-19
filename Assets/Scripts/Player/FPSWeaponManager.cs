@@ -31,6 +31,8 @@ namespace FPSFramework.Player
 
         [Header("Slot Senjata 3D")]
         [SerializeField] private GameObject primaryWeaponObj;
+        [SerializeField] private GameObject primaryRifleObj;
+        [SerializeField] private GameObject primarySniperObj;
         [SerializeField] private GameObject secondaryWeaponObj;
         [SerializeField] private GameObject knifeViewmodelObj;
         [SerializeField] private GameObject grenadeViewmodelObj;
@@ -45,6 +47,11 @@ namespace FPSFramework.Player
         [SerializeField] private AudioClip pistolReloadSound;
         [SerializeField] private AudioClip pistolEquipSound;
 
+        [Header("Audio SFX AWP Magnum Sniper")]
+        [SerializeField] private AudioClip awpShootSound;
+        [SerializeField] private AudioClip awpReloadSound;
+        [SerializeField] private AudioClip awpScopeSound;
+
         [Header("Audio SFX Grenade")]
         [SerializeField] private AudioClip grenadeThrowSound;
         [SerializeField] private AudioClip grenadeExplosionSound;
@@ -54,10 +61,20 @@ namespace FPSFramework.Player
         [SerializeField] private int startingGrenadeCount = 1;
         [SerializeField] private float switchDuration = 0.22f;
 
+        public enum PrimaryWeaponType
+        {
+            Rifle = 1,
+            Sniper = 2
+        }
+
         // State Inventory
         public WeaponSlot CurrentSlot { get; private set; } = WeaponSlot.Primary;
         public WeaponSlot ActiveSlot => CurrentSlot;
+        public PrimaryWeaponType CurrentPrimaryType { get; private set; } = PrimaryWeaponType.Rifle;
         public FPSWeapon ActiveGun { get; private set; }
+        public FPSWeapon PrimaryGun => _primaryGun;
+        public FPSWeapon SniperGun => _sniperGun;
+        public FPSWeapon RifleGun => _rifleGun;
         public int GrenadeCount { get; private set; } = 1;
         public int FragGrenades => GrenadeCount;
         public bool HasC4 { get; set; } = false;
@@ -70,6 +87,8 @@ namespace FPSFramework.Player
         public static event System.Action OnAnyGrenadeThrown;
 
         private FPSWeapon _primaryGun;
+        private FPSWeapon _rifleGun;
+        private FPSWeapon _sniperGun;
         private FPSWeapon _secondaryGun;
         private FPSKnife _knifeWeapon;
         private Camera _mainCamera;
@@ -91,6 +110,11 @@ namespace FPSFramework.Player
             {
                 _primaryGun.FiringLocked = locked;
                 if (locked) _primaryGun.CancelReload();
+            }
+            if (_sniperGun != null && _sniperGun != _primaryGun)
+            {
+                _sniperGun.FiringLocked = locked;
+                if (locked) _sniperGun.CancelReload();
             }
             if (_secondaryGun != null)
             {
@@ -158,19 +182,56 @@ namespace FPSFramework.Player
             else if (_mainCamera != null) _weaponSwayTransform = _mainCamera.transform.Find("Weapon_Sway");
             if (_weaponSwayTransform == null) _weaponSwayTransform = transform;
 
-            // 1. Setup Primary (SMG_K)
-            if (primaryWeaponObj == null)
+            // 1. Setup Primary Rifle (SMG_K)
+            if (primaryRifleObj == null)
             {
-                FPSWeapon existingWeapon = GetComponentInChildren<FPSWeapon>();
-                if (existingWeapon != null)
+                if (primaryWeaponObj != null)
                 {
-                    primaryWeaponObj = existingWeapon.gameObject;
-                    _primaryGun = existingWeapon;
+                    primaryRifleObj = primaryWeaponObj;
+                    _rifleGun = primaryRifleObj.GetComponent<FPSWeapon>();
+                }
+                else
+                {
+                    FPSWeapon existingWeapon = GetComponentInChildren<FPSWeapon>();
+                    if (existingWeapon != null)
+                    {
+                        primaryRifleObj = existingWeapon.gameObject;
+                        _rifleGun = existingWeapon;
+                    }
                 }
             }
             else
             {
-                _primaryGun = primaryWeaponObj.GetComponent<FPSWeapon>();
+                _rifleGun = primaryRifleObj.GetComponent<FPSWeapon>();
+            }
+
+            // 1b. Setup Primary Sniper (AWP)
+            if (primarySniperObj == null)
+            {
+                primarySniperObj = SpawnSniperPrimary();
+                if (primarySniperObj != null)
+                {
+                    _sniperGun = primarySniperObj.GetComponent<FPSWeapon>();
+                }
+            }
+            else
+            {
+                _sniperGun = primarySniperObj.GetComponent<FPSWeapon>();
+            }
+
+            // Atur senjata primary aktif
+            if (CurrentPrimaryType == PrimaryWeaponType.Sniper && primarySniperObj != null)
+            {
+                primaryWeaponObj = primarySniperObj;
+                _primaryGun = _sniperGun;
+                if (primaryRifleObj != null) primaryRifleObj.SetActive(false);
+            }
+            else
+            {
+                CurrentPrimaryType = PrimaryWeaponType.Rifle;
+                primaryWeaponObj = primaryRifleObj;
+                _primaryGun = _rifleGun;
+                if (primarySniperObj != null) primarySniperObj.SetActive(false);
             }
 
             // 2. Setup Secondary (Pistol_A)
@@ -228,21 +289,24 @@ namespace FPSFramework.Player
             if (vmLayer == -1) vmLayer = 6;
 
             // Set seluruh hierarki viewmodel ke layer Viewmodel (Anti-Clipping)
-            SetLayerRecursively(primaryWeaponObj, vmLayer);
+            SetLayerRecursively(primaryRifleObj, vmLayer);
+            SetLayerRecursively(primarySniperObj, vmLayer);
             SetLayerRecursively(secondaryWeaponObj, vmLayer);
             SetLayerRecursively(knifeViewmodelObj, vmLayer);
             SetLayerRecursively(grenadeViewmodelObj, vmLayer);
             SetLayerRecursively(c4ViewmodelObj, vmLayer);
 
             // Bersihkan seluruh collider viewmodel agar tidak memblokir raycast tembakan (Zero-Damage Guard)
-            StripAllColliders(primaryWeaponObj);
+            StripAllColliders(primaryRifleObj);
+            StripAllColliders(primarySniperObj);
             StripAllColliders(secondaryWeaponObj);
             StripAllColliders(knifeViewmodelObj);
             StripAllColliders(grenadeViewmodelObj);
             StripAllColliders(c4ViewmodelObj);
 
             // Perbaiki material seluruh viewmodel ke URP Lit agar tidak berwarna pink
-            FixRenderersMaterials(primaryWeaponObj);
+            FixRenderersMaterials(primaryRifleObj);
+            FixRenderersMaterials(primarySniperObj);
             FixRenderersMaterials(secondaryWeaponObj);
             FixRenderersMaterials(knifeViewmodelObj);
             FixRenderersMaterials(grenadeViewmodelObj);
@@ -252,47 +316,223 @@ namespace FPSFramework.Player
 #if UNITY_EDITOR
         private void LoadDefaultAudioAssets()
         {
+            if (awpShootSound == null)
+            {
+                awpShootSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/AWP Sound Effect.wav");
+            }
+            if (awpReloadSound == null)
+            {
+                awpReloadSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/Csgo AWP Reload Sound effect.wav");
+            }
+            if (awpScopeSound == null)
+            {
+                awpScopeSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/Csgo AWP Scope in Sound effect.wav");
+            }
             if (pistolShootSound == null)
             {
-                pistolShootSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_01.wav");
+                pistolShootSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_01.wav");
             }
             if (pistolShootVariations == null || pistolShootVariations.Length == 0)
             {
                 pistolShootVariations = new AudioClip[]
                 {
-                    UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_01.wav"),
-                    UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_02.wav"),
-                    UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_03.wav")
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_01.wav"),
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_02.wav"),
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/Handgun/Gunshots/sfx_wpn_hgn_gunshot_03.wav")
                 };
             }
             if (pistolReloadSound == null)
             {
-                pistolReloadSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Reload/sfx_wpn_hgn_reload_04_magIn.wav");
+                pistolReloadSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/Handgun/Reload/sfx_wpn_hgn_reload_04_magIn.wav");
             }
             if (pistolEquipSound == null)
             {
-                pistolEquipSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_equip_01.wav");
+                pistolEquipSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_equip_01.wav");
             }
             if (grenadeThrowSound == null)
             {
-                grenadeThrowSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/GrenadeLauncher/sfx_wpn_gl_fire.wav");
+                grenadeThrowSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/GrenadeLauncher/sfx_wpn_gl_fire.wav");
             }
             if (grenadeExplosionSound == null)
             {
-                grenadeExplosionSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/GrenadeLauncher/sfx_wpn_gl_explosion.wav");
+                grenadeExplosionSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/GrenadeLauncher/sfx_wpn_gl_explosion.wav");
             }
             if (grenadeEquipSound == null)
             {
-                grenadeEquipSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_equip_02.wav");
+                grenadeEquipSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_equip_02.wav");
             }
         }
 #endif
+
+        private GameObject SpawnSniperPrimary()
+        {
+            GameObject sniperPrefab = null;
+#if UNITY_EDITOR
+            sniperPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Weapons/Sniper_AWP/Prefabs/Weapons/Weapons_PreSet/Recon_P_PreSet.prefab");
+#endif
+            if (sniperPrefab == null && _weaponSwayTransform != null)
+            {
+                Transform found = _weaponSwayTransform.Find("AWP_Magnum_Sniper");
+                if (found != null) return found.gameObject;
+            }
+
+            GameObject sniperObj;
+            if (sniperPrefab != null)
+            {
+                sniperObj = Instantiate(sniperPrefab, _weaponSwayTransform);
+                sniperObj.name = "AWP_Magnum_Sniper";
+            }
+            else
+            {
+                sniperObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                sniperObj.name = "AWP_Fallback_Sniper";
+                sniperObj.transform.SetParent(_weaponSwayTransform, false);
+                sniperObj.transform.localScale = new Vector3(0.08f, 0.12f, 0.95f);
+                SafeDestroy(sniperObj.GetComponent<Collider>());
+            }
+
+            // Posisi, rotasi & skala ergonomis AWP di layar (relatif terhadap Weapon_Sway)
+            sniperObj.transform.localPosition = new Vector3(-0.02f, 0.01f, 0.08f);
+            sniperObj.transform.localRotation = Quaternion.identity;
+            sniperObj.transform.localScale = Vector3.one * 0.92f;
+
+            // Pasang Optic_Recon_T sebagai teleskop sniper
+#if UNITY_EDITOR
+            GameObject opticPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Weapons/Sniper_AWP/Prefabs/Attachments/Optics/Optics_Recon/Optic_Recon_T.prefab");
+            if (opticPrefab != null)
+            {
+                Transform ironSight = sniperObj.transform.Find("Recon_P_Sight");
+                if (ironSight != null) ironSight.gameObject.SetActive(false);
+
+                GameObject opticObj = Instantiate(opticPrefab, sniperObj.transform);
+                opticObj.name = "Mounted_Optic_Recon_T";
+                opticObj.transform.localPosition = new Vector3(0f, 0.085f, 0.22f);
+                opticObj.transform.localRotation = Quaternion.identity;
+                opticObj.transform.localScale = Vector3.one;
+            }
+
+            GameObject muzzlePrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Weapons/Sniper_AWP/Prefabs/Attachments/Barrels/Muzzles_Recon/Muzzle_Recon_Brake_D.prefab");
+            if (muzzlePrefab != null)
+            {
+                GameObject muzzleObj = Instantiate(muzzlePrefab, sniperObj.transform);
+                muzzleObj.name = "Mounted_Muzzle_Recon_Brake";
+                muzzleObj.transform.localPosition = new Vector3(0f, 0.0645f, 0.92f);
+                muzzleObj.transform.localRotation = Quaternion.identity;
+                muzzleObj.transform.localScale = Vector3.one;
+            }
+#endif
+
+            // Pasang atau ambil komponen FPSWeapon
+            FPSWeapon sniperWeapon = sniperObj.GetComponent<FPSWeapon>();
+            if (sniperWeapon == null)
+            {
+                sniperWeapon = sniperObj.AddComponent<FPSWeapon>();
+            }
+
+            // Auto-load audio jika belum di-assign
+#if UNITY_EDITOR
+            if (awpShootSound == null)
+            {
+                awpShootSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/AWP Sound Effect.wav");
+            }
+            if (awpReloadSound == null)
+            {
+                awpReloadSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/Csgo AWP Reload Sound effect.wav");
+            }
+            if (awpScopeSound == null)
+            {
+                awpScopeSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/Csgo AWP Scope in Sound effect.wav");
+            }
+#endif
+
+            // Konfigurasi AWP: 115 damage, 1.45s cycle, 5 mag, 30 reserve, 3.6s reload
+            sniperWeapon.ConfigureAsSniper(
+                name: "AWP MAGNUM SNIPER",
+                damage: 115f,
+                fireInterval: 1.45f,
+                magSize: 5,
+                reserveAmmo: 30,
+                reloadDur: 3.6f,
+                shootClip: awpShootSound,
+                reloadClip: awpReloadSound,
+                scopeClip: awpScopeSound
+            );
+
+            if (_rifleGun != null)
+            {
+                sniperWeapon.InheritHitFeedbackAudio(_rifleGun);
+            }
+
+            int vmLayer = LayerMask.NameToLayer("Viewmodel");
+            if (vmLayer == -1) vmLayer = 6;
+            SetLayerRecursively(sniperObj, vmLayer);
+            StripAllColliders(sniperObj);
+            FixRenderersMaterials(sniperObj);
+
+            sniperObj.SetActive(false);
+            return sniperObj;
+        }
+
+        /// <summary>
+        /// Mengganti persenjataan slot Primary ke Sniper Rifle AWP.
+        /// </summary>
+        public void EquipSniperPrimary()
+        {
+            if (primarySniperObj == null)
+            {
+                primarySniperObj = SpawnSniperPrimary();
+                if (primarySniperObj != null)
+                {
+                    _sniperGun = primarySniperObj.GetComponent<FPSWeapon>();
+                }
+            }
+
+            if (primarySniperObj == null) return;
+
+            CurrentPrimaryType = PrimaryWeaponType.Sniper;
+            primaryWeaponObj = primarySniperObj;
+            _primaryGun = _sniperGun;
+
+            if (primaryRifleObj != null) primaryRifleObj.SetActive(false);
+
+            if (CurrentSlot == WeaponSlot.Primary)
+            {
+                SelectSlotImmediate(WeaponSlot.Primary);
+            }
+            else
+            {
+                SwitchToSlot(WeaponSlot.Primary);
+            }
+        }
+
+        /// <summary>
+        /// Mengganti persenjataan slot Primary kembali ke Senapan Serbu SMG-K.
+        /// </summary>
+        public void EquipRiflePrimary()
+        {
+            if (primaryRifleObj == null) return;
+
+            CurrentPrimaryType = PrimaryWeaponType.Rifle;
+            primaryWeaponObj = primaryRifleObj;
+            _primaryGun = _rifleGun;
+
+            if (primarySniperObj != null) primarySniperObj.SetActive(false);
+
+            if (CurrentSlot == WeaponSlot.Primary)
+            {
+                SelectSlotImmediate(WeaponSlot.Primary);
+            }
+            else
+            {
+                SwitchToSlot(WeaponSlot.Primary);
+            }
+        }
 
         private GameObject SpawnPistolSecondary()
         {
             GameObject pistolPrefab = null;
 #if UNITY_EDITOR
-            pistolPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Low Poly Pistol Weapon Pack 1/Prefabs/Weapons/Pistol_A.prefab");
+            pistolPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Weapons/Pistol/Prefabs/Weapons/Pistol_A.prefab");
 #endif
             if (pistolPrefab == null && _weaponSwayTransform != null)
             {
@@ -359,7 +599,7 @@ namespace FPSFramework.Player
         {
             GameObject knifePrefab = null;
 #if UNITY_EDITOR
-            knifePrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/SciFi_Knife_Pack_01_FREE/Prefabs/Knife_Blue/Knife_SciFi_Pack1_03_FREE.prefab");
+            knifePrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Weapons/Knife/Prefabs/Knife_Blue/Knife_SciFi_Pack1_03_FREE.prefab");
 #endif
             if (knifePrefab == null && _weaponSwayTransform != null)
             {
@@ -405,7 +645,7 @@ namespace FPSFramework.Player
         {
             GameObject nadePrefab = null;
 #if UNITY_EDITOR
-            nadePrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Cosmic_Retro_Grenades_Pack_1_Demo/Prefabs/Cosmic_Retro_Grenades_Pack_2.prefab");
+            nadePrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Props/Grenades/Prefabs/Cosmic_Retro_Grenades_Pack_2.prefab");
 #endif
             GameObject nadeObj;
             if (nadePrefab != null)
@@ -437,10 +677,10 @@ namespace FPSFramework.Player
         {
             GameObject c4Prefab = null;
 #if UNITY_EDITOR
-            c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Stylized Explosives/Prefabs/Dynamite_Multi.prefab");
+            c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Props/Explosives/Prefabs/Dynamite_Multi.prefab");
             if (c4Prefab == null)
             {
-                c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Stylized Explosives/Models/Dynamite_Multi.fbx");
+                c4Prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Props/Explosives/Models/Dynamite_Multi.fbx");
             }
 #endif
             GameObject c4Obj;
@@ -635,7 +875,8 @@ namespace FPSFramework.Player
 
             CurrentSlot = slot;
 
-            if (primaryWeaponObj != null) primaryWeaponObj.SetActive(slot == WeaponSlot.Primary);
+            if (primaryRifleObj != null) primaryRifleObj.SetActive(slot == WeaponSlot.Primary && CurrentPrimaryType == PrimaryWeaponType.Rifle);
+            if (primarySniperObj != null) primarySniperObj.SetActive(slot == WeaponSlot.Primary && CurrentPrimaryType == PrimaryWeaponType.Sniper);
             if (secondaryWeaponObj != null) secondaryWeaponObj.SetActive(slot == WeaponSlot.Secondary);
             if (knifeViewmodelObj != null) knifeViewmodelObj.SetActive(slot == WeaponSlot.Melee);
             if (grenadeViewmodelObj != null) grenadeViewmodelObj.SetActive(slot == WeaponSlot.Grenade);
@@ -660,7 +901,8 @@ namespace FPSFramework.Player
         {
             switch (slot)
             {
-                case WeaponSlot.Primary: return primaryWeaponObj;
+                case WeaponSlot.Primary:
+                    return (CurrentPrimaryType == PrimaryWeaponType.Sniper && primarySniperObj != null) ? primarySniperObj : (primaryRifleObj != null ? primaryRifleObj : primaryWeaponObj);
                 case WeaponSlot.Secondary: return secondaryWeaponObj;
                 case WeaponSlot.Melee: return knifeViewmodelObj;
                 case WeaponSlot.Grenade: return grenadeViewmodelObj;
@@ -704,7 +946,7 @@ namespace FPSFramework.Player
             GameObject projectileObj;
             GameObject nadePrefab = null;
 #if UNITY_EDITOR
-            nadePrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Cosmic_Retro_Grenades_Pack_1_Demo/Prefabs/Cosmic_Retro_Grenades_Pack_2.prefab");
+            nadePrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Props/Grenades/Prefabs/Cosmic_Retro_Grenades_Pack_2.prefab");
 #endif
             if (nadePrefab != null)
             {
@@ -769,7 +1011,8 @@ namespace FPSFramework.Player
             GrenadeCount = startingGrenadeCount;
             OnGrenadeCountChanged?.Invoke(GrenadeCount);
 
-            if (_primaryGun != null) _primaryGun.ResetAmmoAndRecoil();
+            if (_rifleGun != null) _rifleGun.ResetAmmoAndRecoil();
+            if (_sniperGun != null) _sniperGun.ResetAmmoAndRecoil();
             if (_secondaryGun != null) _secondaryGun.ResetAmmoAndRecoil();
 
             SelectSlotImmediate(WeaponSlot.Primary);

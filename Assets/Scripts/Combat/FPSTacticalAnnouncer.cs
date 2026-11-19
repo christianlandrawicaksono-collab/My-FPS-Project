@@ -136,7 +136,7 @@ namespace FPSFramework.Combat
         private void LoadAudioClips()
         {
 #if UNITY_EDITOR
-            string basePath = "Assets/Sound/Announcer/";
+            string basePath = "Assets/Audio/Announcer/";
             if (roundOneClip == null) roundOneClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "round_one.mp3");
             if (roundTwoClip == null) roundTwoClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "round_two.mp3");
             if (roundThreeClip == null) roundThreeClip = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>(basePath + "round_three.mp3");

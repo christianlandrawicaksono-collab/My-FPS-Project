@@ -108,6 +108,7 @@ namespace FPSFramework.Player
         private AudioClip _procHeadshotClip;
         private AudioClip _procBodyshotClip;
         private Texture2D _pixelTex;
+        private Texture2D _scopeApertureTexture;
 
         // Styles
         private GUIStyle _hudTitleStyle;
@@ -387,7 +388,17 @@ namespace FPSFramework.Player
             string cleanVictim = dummyName.Replace("Enemy_", "").Replace("Target_", "").Replace("(Clone)", "").Replace("_", " ").Trim().ToUpper();
             if (string.IsNullOrEmpty(cleanVictim)) cleanVictim = "ENEMY";
 
-            string currentWeapon = weapon != null ? weapon.WeaponName.ToUpper() : "SMG-K TACTICAL";
+            string currentWeapon = "SMG-K TACTICAL";
+            if (FPSWeaponManager.Instance != null)
+            {
+                if (FPSWeaponManager.Instance.ActiveSlot == WeaponSlot.Melee) currentWeapon = "COMBAT KNIFE";
+                else if (FPSWeaponManager.Instance.ActiveSlot == WeaponSlot.Grenade) currentWeapon = "FRAG GRENADE";
+                else if (FPSWeaponManager.Instance.ActiveGun != null) currentWeapon = FPSWeaponManager.Instance.ActiveGun.WeaponName.ToUpper();
+            }
+            else if (weapon != null)
+            {
+                currentWeapon = weapon.WeaponName.ToUpper();
+            }
 
             KillfeedEntry entry = new KillfeedEntry
             {
@@ -752,18 +763,29 @@ namespace FPSFramework.Player
                 eco.HasDefuseKit,
                 () => eco.TryBuyDefuseKit());
 
-            // Kolom 2: WEAPONS
+            // Kolom 2: WEAPONS (PRIMARY FIREARMS)
             float col2X = startX + colW + colGap;
-            DrawBuyCategoryColumn(col2X, startY, colW, "FIREARMS");
+            DrawBuyCategoryColumn(col2X, startY, colW, "PRIMARY FIREARMS");
+
+            bool isHoldingSMG = (FPSWeaponManager.Instance != null && FPSWeaponManager.Instance.CurrentPrimaryType == FPSWeaponManager.PrimaryWeaponType.Rifle);
+            bool isHoldingAWP = (FPSWeaponManager.Instance != null && FPSWeaponManager.Instance.CurrentPrimaryType == FPSWeaponManager.PrimaryWeaponType.Sniper);
+
             DrawBuyItemButton(col2X, startY + 30f, colW, 70f, "SMG-K TACTICAL", "$1,500", "Full-auto Submachine Gun (30/90)",
-                eco.CurrentCash >= 1500,
-                false,
+                eco.CurrentCash >= FPSEconomyManager.CostSMGK && !isHoldingSMG,
+                isHoldingSMG,
                 () => eco.TryBuySMGK());
 
-            DrawBuyItemButton(col2X, startY + 108f, colW, 70f, "REFILL AMMO", "$200", "Refill primary reserve ammo",
-                eco.CurrentCash >= 200,
+            DrawBuyItemButton(col2X, startY + 108f, colW, 70f, "AWP MAGNUM SNIPER", "$4,750", "1-Shot Fatal Bolt-Action (5/30)",
+                eco.CurrentCash >= FPSEconomyManager.CostAWP && !isHoldingAWP,
+                isHoldingAWP,
+                () => eco.TryBuyAWP());
+
+            int ammoCost = isHoldingAWP ? FPSEconomyManager.CostAWPAmmo : FPSEconomyManager.CostSMGAmmo;
+            string ammoName = isHoldingAWP ? "AWP AMMO REFILL" : "SMG AMMO REFILL";
+            DrawBuyItemButton(col2X, startY + 186f, colW, 70f, ammoName, $"${ammoCost}", "Refill primary reserve ammo",
+                eco.CurrentCash >= ammoCost,
                 false,
-                () => eco.TryBuySMGAmmo());
+                () => { if (isHoldingAWP) eco.TryBuyAWPAmmo(); else eco.TryBuySMGAmmo(); });
 
             // Kolom 3: GRENADES
             float col3X = col2X + colW + colGap;
@@ -1021,6 +1043,12 @@ namespace FPSFramework.Player
                 DrawSolidRect(new Rect(barX, barY, barW, barH), new Color(0.2f, 0.22f, 0.26f, 1f));
                 DrawSolidRect(new Rect(barX, barY, barW * curWeapon.ReloadProgress, barH), new Color(1f, 0.8f, 0.2f, 1f));
             }
+            else if (curWeapon.IsBoltCycling)
+            {
+                // Bolt-Action Cycling Status
+                _hudTitleStyle.normal.textColor = new Color(0.95f, 0.65f, 0.2f);
+                GUI.Label(new Rect(x + 14f, y + 26f, 160f, 20f), "CYCLING BOLT...", _hudTitleStyle);
+            }
             else
             {
                 // Current Ammo Number
@@ -1163,6 +1191,14 @@ namespace FPSFramework.Player
                 ? FPSWeaponManager.Instance.ActiveGun
                 : weapon;
 
+            // Jika senjata adalah sniper dan sedang membidik teropong (scoped), gambar overlay khusus sniper
+            if (curWeapon != null && curWeapon.IsScoped)
+            {
+                DrawSniperScopeOverlay(curWeapon);
+                DrawHitmarker(Screen.width / 2f, Screen.height / 2f);
+                return;
+            }
+
             float inaccuracy = movementController != null ? movementController.InaccuracyModifier : 0f;
             float totalSpread = inaccuracy;
 
@@ -1248,6 +1284,145 @@ namespace FPSFramework.Player
             GUI.DrawTexture(new Rect(cx + hitGap, cy - thickness / 2f, hitLength, thickness), _pixelTex);
 
             GUI.matrix = matrixBackup;
+        }
+
+        private void EnsureScopeTexture()
+        {
+            if (_scopeApertureTexture != null) return;
+
+            int size = 256;
+            _scopeApertureTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            _scopeApertureTexture.wrapMode = TextureWrapMode.Clamp;
+            _scopeApertureTexture.filterMode = FilterMode.Bilinear;
+
+            float center = size / 2f;
+            float radius = (size / 2f) - 2f;
+
+            Color[] pixels = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = x - center;
+                    float dy = y - center;
+                    float dist = Mathf.Sqrt(dx * dx + dy * dy);
+
+                    if (dist < radius - 3f)
+                    {
+                        // Bagian dalam lensa teropong (transparan sempurna)
+                        pixels[y * size + x] = new Color(0f, 0f, 0f, 0f);
+                    }
+                    else if (dist < radius)
+                    {
+                        // Pinggiran lingkaran lensa halus (anti-aliased rim)
+                        float t = (dist - (radius - 3f)) / 3f;
+                        pixels[y * size + x] = new Color(0.03f, 0.04f, 0.04f, t);
+                    }
+                    else
+                    {
+                        // Luar lingkaran lensa (hitam pekat)
+                        pixels[y * size + x] = new Color(0.02f, 0.02f, 0.03f, 1f);
+                    }
+                }
+            }
+
+            _scopeApertureTexture.SetPixels(pixels);
+            _scopeApertureTexture.Apply();
+        }
+
+        private void DrawSniperScopeOverlay(FPSWeapon sniper)
+        {
+            EnsureScopeTexture();
+
+            float screenW = Screen.width;
+            float screenH = Screen.height;
+            float cx = screenW / 2f;
+            float cy = screenH / 2f;
+
+            // Ukuran diameter lensa lingkaran teropong (82% tinggi layar)
+            float diameter = screenH * 0.82f;
+            float radius = diameter / 2f;
+
+            // 1. Gambar 4 panel penutup hitam di luar kotak lingkaran
+            GUI.color = new Color(0.02f, 0.02f, 0.03f, 1f);
+            GUI.DrawTexture(new Rect(0f, 0f, cx - radius, screenH), _pixelTex); // Kiri
+            GUI.DrawTexture(new Rect(cx + radius, 0f, screenW - (cx + radius), screenH), _pixelTex); // Kanan
+            GUI.DrawTexture(new Rect(cx - radius, 0f, diameter, cy - radius), _pixelTex); // Atas
+            GUI.DrawTexture(new Rect(cx - radius, cy + radius, diameter, screenH - (cy + radius)), _pixelTex); // Bawah
+
+            // 2. Gambar tekstur topeng aperture teropong (lingkaran tengah transparan)
+            GUI.color = Color.white;
+            GUI.DrawTexture(new Rect(cx - radius, cy - radius, diameter, diameter), _scopeApertureTexture);
+
+            // Cek apakah pemain bergerak untuk jitter / blur efek garis bidik
+            float moveInacc = movementController != null ? movementController.InaccuracyModifier : 0f;
+            bool isMoving = moveInacc > 0.04f;
+            float jitter = isMoving ? Random.Range(-1.5f, 1.5f) : 0f;
+
+            // 3. Gambar Garis Silang Crosshair Hitam Tipis Sniper ala CS2
+            Color lineCol = isMoving ? new Color(0.12f, 0.12f, 0.12f, 0.75f) : new Color(0.04f, 0.04f, 0.04f, 0.95f);
+            GUI.color = lineCol;
+
+            float lineThickness = 1.5f;
+            // Garis horizontal penuh melintasi lensa
+            GUI.DrawTexture(new Rect(cx - radius, cy - lineThickness / 2f + jitter, diameter, lineThickness), _pixelTex);
+            // Garis vertikal penuh melintasi lensa
+            GUI.DrawTexture(new Rect(cx - lineThickness / 2f + jitter, cy - radius, lineThickness, diameter), _pixelTex);
+
+            // Titik tengah bidik (Center Dot 2px)
+            GUI.color = isMoving ? Color.red : Color.black;
+            GUI.DrawTexture(new Rect(cx - 1.5f + jitter, cy - 1.5f + jitter, 3f, 3f), _pixelTex);
+
+            // 4. Mil-dot Hash Marks (Tanda batas jarak taktis)
+            GUI.color = new Color(0.08f, 0.08f, 0.08f, 0.85f);
+            float[] tickRatios = { 0.2f, 0.4f, 0.6f, 0.8f };
+            float tickLen = 6f;
+            foreach (float r in tickRatios)
+            {
+                float d = radius * r;
+                // Horizontal ticks
+                GUI.DrawTexture(new Rect(cx - d - 0.5f, cy - tickLen / 2f, 1f, tickLen), _pixelTex);
+                GUI.DrawTexture(new Rect(cx + d - 0.5f, cy - tickLen / 2f, 1f, tickLen), _pixelTex);
+                // Vertical ticks
+                GUI.DrawTexture(new Rect(cx - tickLen / 2f, cy - d - 0.5f, tickLen, 1f), _pixelTex);
+                GUI.DrawTexture(new Rect(cx - tickLen / 2f, cy + d - 0.5f, tickLen, 1f), _pixelTex);
+            }
+
+            // 5. Telemetri Taktis di Dalam Teropong
+            string zoomText = sniper.CurrentScopeStage == SniperScopeStage.Zoom2 ? "MAG: 2.5x [MAX]" : "MAG: 1.0x [WIDE]";
+            GUIStyle textStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 11,
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = new Color(0.2f, 0.75f, 0.9f, 0.8f) }
+            };
+
+            GUI.Label(new Rect(cx - radius + 20f, cy - radius + 20f, 160f, 24f), zoomText, textStyle);
+            GUI.Label(new Rect(cx + radius - 150f, cy - radius + 20f, 140f, 24f), "CALIBER: .338 MAG", textStyle);
+
+            if (isMoving)
+            {
+                GUIStyle warningStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 11,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleCenter,
+                    normal = { textColor = new Color(1f, 0.25f, 0.25f, 0.9f) }
+                };
+                GUI.Label(new Rect(cx - 100f, cy + radius - 40f, 200f, 24f), "[MOVING - SPREAD ACTIVE]", warningStyle);
+            }
+            else
+            {
+                GUIStyle readyStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 11,
+                    alignment = TextAnchor.MiddleCenter,
+                    normal = { textColor = new Color(0.3f, 0.9f, 0.3f, 0.75f) }
+                };
+                GUI.Label(new Rect(cx - 100f, cy + radius - 40f, 200f, 24f), "PIN-POINT READY", readyStyle);
+            }
+
+            GUI.color = Color.white;
         }
 
         private void DrawDebugTelemetry()

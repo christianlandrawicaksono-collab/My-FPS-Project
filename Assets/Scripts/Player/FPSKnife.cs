@@ -108,15 +108,15 @@ namespace FPSFramework.Player
 #if UNITY_EDITOR
             if (equipSound == null)
             {
-                equipSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_equip_02.wav");
+                equipSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Packs/FreeWeaponSFX_v1.1/Handgun/Foley/sfx_wpn_hgn_foley_equip_02.wav");
             }
             if (fleshHitSound == null)
             {
-                fleshHitSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/hit-flesh.wav");
+                fleshHitSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/hit-flesh.wav");
             }
             if (worldHitSound == null)
             {
-                worldHitSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Bullet_impact_2.wav");
+                worldHitSound = UnityEditor.AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/Bullet_impact_2.wav");
             }
 #endif
         }
